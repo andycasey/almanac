@@ -34,7 +34,8 @@ dependencies = [
     "sdssdb",
     "colorlog",
     "rich",
-    "pydantic"
+    "pydantic",
+    "sdss-semaphore>=0.2.8",
 ]
 
 [project.urls]

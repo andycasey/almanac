@@ -19,4 +19,4 @@ elif t > float(config.database_connect_time_warning):
         f"You can suppress this warning with the `database_connect_time_warning` configuration."
     )
 
-from sdssdb.peewee.sdss5db import catalogdb, opsdb
+from sdssdb.peewee.sdss5db import catalogdb, opsdb, targetdb

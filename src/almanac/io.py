@@ -266,11 +266,14 @@ def _write_models_to_hdf5_group(
     data,
     hdf5_group,
     chunk_size: int = 1000,
-    compression: str = None
+    compression: str = None,
+    callback: Any = None
 ):
     num_records = None
+    if callback is None:
+        callback = lambda *_, **__: None
 
-    for field_name, field_spec in tqdm(fields.items(), desc="Writing fields"):
+    for field_name, field_spec in fields.items():
 
         # Extract data for this field from all models
         field_data = data[field_name]
@@ -307,6 +310,8 @@ def _write_models_to_hdf5_group(
             np_array = np.array(converted_data, dtype=hdf5_dtype)
 
             chunks = (min(chunk_size, num_records),) if num_records > chunk_size else None
+            if np_array.ndim > 1 and chunks is not None:
+                chunks = (chunks[0], np_array.shape[1])
             compression_setting = compression if num_records > chunk_size else None
 
             dataset = hdf5_group.create_dataset(
@@ -318,3 +323,4 @@ def _write_models_to_hdf5_group(
 
         # Add description, even if it is empty string.
         dataset.attrs["description"] = field_spec.description or ""
+        callback(field_name)

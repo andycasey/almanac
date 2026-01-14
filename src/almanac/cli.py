@@ -41,13 +41,7 @@ def main(
 
     # This keeps the default behaviour as 'query mode' but allows for commands like 'config'.
     if ctx.invoked_subcommand is not None:
-        command = dict(
-            config=config,
-            dump=dump,
-            add=add,
-            lookup=lookup
-        )[ctx.invoked_subcommand]
-        return ctx.invoke(command, **ctx.params)
+        return  # Let Click handle the subcommand
 
     import h5py as h5
     from itertools import product
@@ -348,6 +342,13 @@ def add(**kwargs):
     """Add new information to an existing Almanac file."""
     pass
 
+def _get_sdss_ids(fp, obs, mjd):
+    group = fp.get(f"{obs}/{mjd}/fibers", [])
+    sdss_ids = set()
+    for config in group:
+        sdss_ids.update(group[config]["sdss_id"][:])
+    return sdss_ids
+
 @add.command()
 @click.argument("input_path", type=str)
 @click.option("--mjd", default=None, type=int, help="Modified Julian date to query. Use negative values to indicate relative to current MJD")
@@ -358,22 +359,25 @@ def add(**kwargs):
 @click.option("--date-end", default=None, type=str, help="End of date range to query")
 @click.option("--apo", is_flag=True, help="Query Apache Point Observatory data")
 @click.option("--lco", is_flag=True, help="Query Las Campanas Observatory data")
-def metadata(input_path, mjd, mjd_start, mjd_end, date, date_start, date_end, apo, lco, **kwargs):
+@click.option("--p", default=-1, type=int, help="Number of workers to use")
+def metadata(input_path, mjd, mjd_start, mjd_end, date, date_start, date_end, apo, lco, p, **kwargs):
     """Add astrometry and photometry to an existing Almanac file."""
 
-    import numpy as np
+    import os
     import h5py as h5
+    import concurrent.futures
     from itertools import product
     from almanac import utils
-    from almanac.catalog import query_catalog
-    from almanac.data_models.metadata import SourceMetadata
+    from almanac.catalog import query
     from tqdm import tqdm
+
+    if p <= 0:
+        p += os.cpu_count()
 
     observatories = utils.get_observatories(apo, lco)
     mjds, *_ = utils.parse_mjds(
         mjd, mjd_start, mjd_end, date, date_start, date_end, return_nones=True
     )
-
     sdss_ids = set()
     with h5.File(input_path, "r") as fp:
         if mjds is None:
@@ -382,81 +386,308 @@ def metadata(input_path, mjd, mjd_start, mjd_end, date, date_start, date_end, ap
                 mjds.extend(fp[obs])
             mjds = list(set(mjds))
 
-        for mjd, obs in product(mjds, observatories):
-            group = fp.get(f"{obs}/{mjd}/fibers", [])
-            for config in group:
-                if "source_id" in group[config]:
-                    continue
-                sdss_ids.update(group[config]["sdss_id"][:])
+        with concurrent.futures.ThreadPoolExecutor(max_workers=p) as executor:
+            futures = [
+                executor.submit(_get_sdss_ids, fp, o, m)
+                for o, m in product(observatories, mjds)
+            ]
+            for future in tqdm(concurrent.futures.as_completed(futures), desc="Collecting SDSS identifiers"):
+                sdss_ids.update(future.result())
 
-    v = []
-    for row in tqdm(query_catalog(sdss_ids), total=len(sdss_ids)):
-        v.append(row)
+    from almanac.data_models.source import Source
+
+    results = query(sdss_ids)
+    import pickle
+    with open("20251128-meta.pkl", "wb") as fp:
+        pickle.dump(results, fp)
+
+import h5py as h5
+def _get_fiber_exposure(index, obs, mjd, expnum, adjusted_fiber_index, path, outdir):
+    with h5.File(path, "r") as almanac_fp:
+
+        key = f"{obs}/{mjd}"
+        g = almanac_fp[key]
+
+        d = { k: v[expnum - 1] for k, v in g["exposures"].items() }
+
+        # Get fiber-level info.
+        ref_id = max(d["config_id"], d["plate_id"])
+        fiber_index = adjusted_fiber_index - 1
+        if fiber_index >= 300:
+            fiber_index -= 300
+
+        gf = g[f"fibers/{ref_id}"]
+        d.update({ k: gf[k][fiber_index] for k in gf.keys() })
+
+    ar1dunical_path = f"{outdir}/apred/{mjd}/ar1Dunical_{obs}_{mjd}_{expnum:04d}_object.h5"
+
+    ar1d_keys = (
+        "bitmsk_relFluxFile",
+        "cartid",
+        "extraction_method",
+        #"git_branch",
+        #"git_clean",
+        #"git_commit",
+        "mjd_mid_exposure",
+        "ndiff_used",
+        "nread_total",
+        "trace_found_match",
+        "trace_orig_param_fname",
+        "trace_type",
+        "wavecal_type",
+    )
+    try:
+        with h5.File(ar1dunical_path, "r") as ar1d:
+            for key in ar1d_keys:
+                d[key] = ar1d[f"metadata/{key}"][...].flatten()[0]
+    except FileNotFoundError:
+        d["flag_missing_ar1dunical"] = True
+    else:
+        d["flag_missing_ar1dunical"] = False
+    finally:
+        return (index, d)
 
 
 
 
-        if mjd is None:
-            total = sum([len(fp[obs].keys()) for obs in observatories])
-        else:
-            total = 1 * len(observatories)
+@main.command()
+@click.argument("input_path", type=str)
+@click.argument("output_path", type=str)
+@click.option("--processes", "-p", default=None, type=int, help="Number of processes to use")
+def postprocess(input_path, output_path, processes, **kwargs):
+    """Post-process an existing Almanac file after reductions are complete."""
 
-        sdss_ids = dict()
-        with tqdm(total=total, desc="Collecting SDSS identifiers") as pb:
-            for observatory in observatories:
-                if observatory not in fp:
-                    continue
+    if not input_path or not output_path:
+        return
 
-                mjds = fp[observatory].keys() if mjd is None else [str(mjd)]
+    #print(input_path)
+    #input_path = "almanac/allobs_57600_61000.h5"
+    #output_path = "/mnt/ceph/users/sdssv/work/acasey/20260114-exposures.h5"
+    #print(kwargs)
+    import os
+    if not os.path.exists(input_path):
+        raise FileNotFoundError(f"The file {input_path} does not exist.")
 
-                for mjd in mjds:
-                    group = fp[f"{observatory}/{mjd}"]
-                    if "fibers" not in group:
-                        continue
+    if processes is None or processes < 0:
+        processes = os.cpu_count()
 
-                    for config_id in group["fibers"]:
-                        config_group = group[f"fibers/{config_id}"]
+    outdir = os.path.dirname(os.path.abspath(input_path)) + "/../"
 
-                        if "source_id" in config_group:
-                            continue
+    from glob import glob
+    import h5py as h5
+    import pickle
+    import concurrent.futures
+    import numpy as np
+    import warnings
+    from astropy.coordinates import SkyCoord, EarthLocation
+    from astropy import units as u
+    from astropy.time import Time
 
-                        dtypes = dict(
-                            sdss_id=(np.int64, -1),
-                            source_id=(np.int64, -1),
-                            ra=(float, np.nan),
-                            dec=(float, np.nan),
-                            parallax=(float, np.nan),
-                            radial_velocity=(float, np.nan),
-                            radial_velocity_error=(float, np.nan),
-                            bp_rp=(float, np.nan),
-                            bp_g=(float, np.nan),
-                            g_rp=(float, np.nan),
-                            designation=(None, ""),
-                            j_m=(float, np.nan),
-                            h_m=(float, np.nan),
-                            k_m=(float, np.nan),
-                        )
+    from almanac.display import TaskDisplay
+    from almanac.data_models.spectrum import Spectrum
+    from almanac.io import _write_models_to_hdf5_group
 
-                        n = len(config_group["sdss_id"][:])
-                        metadata = {k: [v[1]] * n for k, v in dtypes.items()}
-                        for i, row in enumerate(query_catalog(list(config_group["sdss_id"][:]))):
-                            for key in row.keys():
-                                metadata[key][i] = row[key]
+    from sdss_semaphore.targeting import TargetingFlags
 
-                        # match to existing sdss_id
-                        new_id = np.argsort(np.argsort(config_group["sdss_id"][:]))
-                        indices = np.argsort(metadata["sdss_id"])[new_id]
+    data_dict = {}
 
-                        for key, values in metadata.items():
-                            if key in config_group:
-                                continue
-                            dtype, default = dtypes[key]
-                            values = np.array([v or default for v in values], dtype=dtype)[indices]
-                            if key == "designation":
-                                values = list(map(str, values))
-                            config_group.create_dataset(key, data=values, dtype=dtype)
-                            print(f"Created {observatory}/{mjd}/fibers/{config_id}/{key}")
-                    pb.update(1)
+    with TaskDisplay() as display:
+
+        # Get full list info
+        full_list_info_path = glob(f"{outdir}/arMADGICS/raw_*/full_list_info.h5")[0]
+        arMADGICS_suffix = full_list_info_path.split("/")[-2][4:]
+
+        fields = { **Spectrum.model_fields, **Spectrum.model_computed_fields }
+
+        total = None
+        with h5.File(full_list_info_path, "r") as full_list_info:
+            keys = list(full_list_info.keys())
+            for i, key in enumerate(keys):
+                if i == 0:
+                    display.add_task("summary", f"Reading {len(full_list_info[key]):,} summary spectra", total=len(keys))
+                data_dict[key] = full_list_info[key][:]
+                display.advance("summary")
+        display.complete("summary")
+
+        total = len(data_dict["sdss_id"])
+
+        # Load in the arMADGICS scalar arrays
+        arMADGICS_dir = f"{outdir}/arMADGICS/wu_th_{arMADGICS_suffix}/"
+        arMADGICS_paths = glob(f"{arMADGICS_dir}/arMADGICS_out_*.h5")
+
+        display.add_task("armadgics", f"Reading {len(arMADGICS_paths)} arMADGICS scalar files", total=len(arMADGICS_paths))
+        display.add_task("map", "Distributing Almanac data", total=total)
+        display.add_task("reduce", "Collecting Almanac data", total=total)
+        display.add_task("v_rad", "Computing radial velocities", total=1)
+        display.add_task("metadata", "Assigning metadata to rows", total=total)
+        display.add_task("targeting", "Aggregating targeting cartons", total=total)
+        display.add_task("write", f"Write to {output_path}", total=len(fields))
+
+        for path in arMADGICS_paths:
+            basename = os.path.basename(path)
+            key = basename[14:-3]
+            with h5.File(path, "r") as fp:
+                if fp[key].ndim == 1:
+                    data_dict[key] = fp[key][:]
+            display.advance("armadgics")
+        display.complete("armadgics")
+
+        # Load in the almanac data for every fiber exposure
+        with concurrent.futures.ProcessPoolExecutor(processes) as executor:
+            futures = []
+            for i in range(total):
+                futures.append(
+                    executor.submit(
+                        _get_fiber_exposure,
+                        i,
+                        data_dict["tele"][i].decode(),
+                        data_dict["mjd"][i].decode(),
+                        data_dict["expnum"][i],
+                        data_dict["adjfiberindx"][i],
+                        input_path,
+                        outdir
+                    )
+                )
+                display.advance("map")
+            display.complete("map")
+
+            for future in concurrent.futures.as_completed(futures):
+                i, d = future.result()
+                for k, v in d.items():
+                    try:
+                        data_dict[k][i] = v
+                    except KeyError:
+                        data_dict.setdefault(k, [None] * total)
+                        data_dict[k][i] = v
+                display.advance("reduce")
+            display.complete("reduce")
+
+        # Load in metadata
+        # TODO: This will be stored in the almanac file eventually, but for now..
+        with open("/mnt/home/acasey/almanac/20251128-meta.pkl", "rb") as fp:
+            source_meta = pickle.load(fp)
+
+        for i in range(total):
+            for k, v in source_meta.get(data_dict["sdss_id"][i], {}).items():
+                try:
+                    data_dict[k][i] = v
+                except KeyError:
+                    data_dict.setdefault(k, [None] * total)
+                    data_dict[k][i] = v
+            display.advance("metadata")
+        display.complete("metadata")
+
+        def propagate_pixels_to_z(p, δλ=6e-6):
+            return δλ * np.log(10) * 10**(p * δλ)
+
+        def propagate_z_to_v(z, c=299792.458):
+            return np.abs(4 * (z + 1) / (((z + 1) ** 2 + 1) ** 2)) * c
+
+        def pixels_to_z(x, delta=6e-6):
+            return 10**(x * delta) - 1
+
+        def z_to_v(z, c=299792.458):
+            return ((z+1)**2-1)/((z+1)**2+1)*c
+
+        def v_to_z(v, c=299792.458):
+            return v / c
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            e_z = propagate_pixels_to_z(np.array(data_dict["RV_pixoff_final"])) * np.sqrt(np.array(data_dict["RV_pix_var"]))
+        z = pixels_to_z(np.array(data_dict["RV_pixoff_final"]))
+
+        ra, dec, mjd_mid_exposure = map(np.array, (
+            data_dict["ra"], data_dict["dec"], data_dict["mjd_mid_exposure"]
+        ))
+
+        data_dict["v_barycentric_correction"] = np.nan * np.ones(total)
+        for obs in ("apo", "lco"):
+            mask = (
+                (np.array(data_dict["tele"]).astype(str) == obs)
+            *   (np.isfinite(ra))
+            *   (np.isfinite(dec))
+            *   (np.isfinite(mjd_mid_exposure))
+            *   (360 >= ra) * (ra >= 0)
+            *   (90 >= dec) * (dec >= -90)
+            )
+
+            data_dict["v_barycentric_correction"][mask] = (
+                SkyCoord(ra=ra[mask] * u.deg, dec=dec[mask] * u.deg)
+                .radial_velocity_correction(
+                    kind="barycentric",
+                    obstime=Time(mjd_mid_exposure[mask], format="mjd"),
+                    location=EarthLocation.of_site(obs)
+                )
+                .to(u.km/u.s)
+                .value
+            )
+
+        z_corr = v_to_z(data_dict["v_barycentric_correction"])
+        data_dict.update(
+            v_rel=z_to_v(z),
+            v_rad=z_to_v(z + z_corr + z_corr * z),
+            e_v_rad=propagate_z_to_v(z) * e_z,
+        )
+        display.complete("v_rad")
+
+        translations = [
+            ("tele", "observatory"),
+            ("expnum", "exposure"),
+            ("starscale", "starscale0"),
+            ("RV_flag", "v_rad_flags"),
+            ("cartid", "cart_id"),
+            ("nSkyFibers", "n_sky_fibers"),
+            ("adjfiberindx", "adjusted_fiber_index"),
+        ]
+        for from_key, to_key in translations:
+            data_dict[to_key] = data_dict.pop(from_key)
+
+
+        flags = TargetingFlags(np.zeros((total, 1)))
+
+        n_unknown_carton_assignments = 0
+        for i, carton_pks in enumerate(data_dict["carton_pks"]):
+            for carton_pk in (carton_pks or {}):
+                try:
+                    flags.set_bit_by_carton_pk(i, carton_pk)
+                except KeyError:
+                    n_unknown_carton_assignments += 1
+            display.advance("targeting")
+
+        data_dict["sdss5_target_flags"] = flags.array
+
+        # Last check point for fields
+        expected = set(fields)
+        actual = set(data_dict.keys())
+        missing_fields = expected - actual
+        ignored_fields = actual - expected
+        for key in missing_fields:
+            data_dict[key] = [None] * total
+
+        def callback(*args, **kwargs):
+            try:
+                display.advance("write")
+            except:
+                pass
+
+        with h5.File(output_path, "w", track_order=True) as fp:
+            _write_models_to_hdf5_group(
+                fields,
+                data_dict,
+                fp,
+                callback=callback
+            )
+        display.complete("write")
+
+        if n_unknown_carton_assignments > 0:
+            print(f"Warning: {n_unknown_carton_assignments:,} unknown carton assignments encountered")
+
+        for key in ignored_fields:
+            print(f"Warning: ignored field {key} in data_dict")
+
+
+
 
 
 @main.group()

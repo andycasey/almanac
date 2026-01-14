@@ -420,3 +420,102 @@ def display_exposures(
 
     console.print(rich_table)
     console.print()  # Add a blank line after the table
+
+
+from rich.live import Live
+from rich.table import Table
+from rich.console import Console
+from threading import Lock
+from enum import Enum
+from dataclasses import dataclass
+
+
+class TaskStatus(Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+@dataclass
+class Task:
+    name: str
+    total: int = 100
+    completed: int = 0
+    status: TaskStatus = TaskStatus.PENDING
+
+
+class TaskDisplay:
+    def __init__(self):
+        self.tasks: dict[str, Task] = {}
+        self.console = Console()
+        self._live = None
+
+    def add_task(self, task_id: str, name: str, total: int = 100) -> str:
+        self.tasks[task_id] = Task(name=name, total=total)
+        return task_id
+
+    def start_task(self, task_id: str):
+        self.tasks[task_id].status = TaskStatus.RUNNING
+        self._refresh()
+
+    def advance(self, task_id: str, amount: int = 1):
+        self.tasks[task_id].completed += amount
+        self._refresh()
+
+    def complete(self, task_id: str):
+        task = self.tasks[task_id]
+        task.completed = task.total
+        task.status = TaskStatus.COMPLETED
+        self._refresh()
+
+    def fail(self, task_id: str):
+        self.tasks[task_id].status = TaskStatus.FAILED
+        self._refresh()
+
+    def _refresh(self):
+        if self._live:
+            self._live.update(self._render())
+
+    def _render(self) -> Table:
+        table = Table(show_header=False, box=None, padding=(0, 1))
+        table.add_column("Status", width=2)
+        table.add_column("Task", style="white", width=70)
+        table.add_column("Progress", width=25)
+
+        icons = {
+            TaskStatus.PENDING: "[dim]○[/dim]",
+            TaskStatus.RUNNING: "[yellow]●[/yellow]",
+            TaskStatus.COMPLETED: "[green]✓[/green]",
+            TaskStatus.FAILED: "[red]✗[/red]",
+        }
+
+        for task in self.tasks.values():
+            pct = task.completed / task.total if task.total > 0 else 0
+            bar_width = 15
+            filled = int(bar_width * pct)
+
+            if task.status == TaskStatus.PENDING:
+                bar = f"[dim]{'─' * bar_width}[/dim]"
+            elif task.status == TaskStatus.COMPLETED:
+                bar = f"[green]{'━' * bar_width}[/green]"
+            elif task.status == TaskStatus.FAILED:
+                bar = f"[red]{'━' * filled}[/red][dim]{'─' * (bar_width - filled)}[/dim]"
+            else:
+                bar = f"[yellow]{'━' * filled}[/yellow][dim]{'─' * (bar_width - filled)}[/dim]"
+
+            progress = f"{bar} [dim]{pct:>5.1%}[/dim]"
+            name_style = "dim" if task.status == TaskStatus.PENDING else "white"
+
+            table.add_row(icons[task.status], f"[{name_style}]{task.name}[/{name_style}]", progress)
+
+        return table
+
+    def __enter__(self):
+        self._live = Live(self._render(), console=self.console, refresh_per_second=10)
+        self._live.__enter__()
+        return self
+
+    def __exit__(self, *args):
+        self._live.__exit__(*args)
+        self._live = None

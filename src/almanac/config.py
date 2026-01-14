@@ -33,7 +33,6 @@ class Config:
     apogee_dir: str = "/uufs/chpc.utah.edu/common/home/sdss/sdsswork/data/apogee/"
     mapper_dir: str = "/uufs/chpc.utah.edu/common/home/sdss50/sdsswork/data/mapper/"
 
-
     display_field_names: List[str] = field(
         default_factory=lambda: [
             "exposure",
