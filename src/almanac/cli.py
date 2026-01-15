@@ -401,53 +401,94 @@ def metadata(input_path, mjd, mjd_start, mjd_end, date, date_start, date_end, ap
     with open("20251128-meta.pkl", "wb") as fp:
         pickle.dump(results, fp)
 
+import os
 import h5py as h5
-def _get_fiber_exposure(index, obs, mjd, expnum, adjusted_fiber_index, path, outdir):
-    with h5.File(path, "r") as almanac_fp:
 
-        key = f"{obs}/{mjd}"
-        g = almanac_fp[key]
+AR1D_KEYS = (
+    "bitmsk_relFluxFile",
+    "cartid",
+    "extraction_method",
+    "mjd_mid_exposure",
+    "ndiff_used",
+    "nread_total",
+    "trace_found_match",
+    "trace_orig_param_fname",
+    "trace_type",
+    "wavecal_type",
+)
 
-        d = { k: v[expnum - 1] for k, v in g["exposures"].items() }
-
-        # Get fiber-level info.
-        ref_id = max(d["config_id"], d["plate_id"])
-        fiber_index = adjusted_fiber_index - 1
-        if fiber_index >= 300:
-            fiber_index -= 300
-
-        gf = g[f"fibers/{ref_id}"]
-        d.update({ k: gf[k][fiber_index] for k in gf.keys() })
-
+def _get_ar1D_unical_meta(outdir, obs, mjd, expnum):
+    """Read metadata from a single ar1Dunical file."""
     ar1dunical_path = f"{outdir}/apred/{mjd}/ar1Dunical_{obs}_{mjd}_{expnum:04d}_object.h5"
 
-    ar1d_keys = (
-        "bitmsk_relFluxFile",
-        "cartid",
-        "extraction_method",
-        #"git_branch",
-        #"git_clean",
-        #"git_commit",
-        "mjd_mid_exposure",
-        "ndiff_used",
-        "nread_total",
-        "trace_found_match",
-        "trace_orig_param_fname",
-        "trace_type",
-        "wavecal_type",
-    )
-    try:
-        with h5.File(ar1dunical_path, "r") as ar1d:
-            for key in ar1d_keys:
-                d[key] = ar1d[f"metadata/{key}"][...].flatten()[0]
-    except FileNotFoundError:
-        d["flag_missing_ar1dunical"] = True
-    else:
-        d["flag_missing_ar1dunical"] = False
-    finally:
-        return (index, d)
+    # Check existence first (cheaper than catching exception)
+    if not os.path.exists(ar1dunical_path):
+        return {"flag_missing_ar1dunical": True}
+
+    d = {"flag_missing_ar1dunical": False}
+    with h5.File(ar1dunical_path, "r") as ar1d:
+        meta = ar1d["metadata"]
+        for key in AR1D_KEYS:
+            # [()] is faster than [...].flatten()[0] for scalar datasets
+            d[key] = meta[key][()]
+    return d
 
 
+def _get_ar1D_unical_meta_batch(args):
+    """
+    Process all exposures for a single MJD in one batch.
+
+    This reduces ProcessPoolExecutor overhead by having fewer, larger tasks.
+    Files for the same MJD are co-located on disk, improving cache performance.
+    """
+    outdir, mjd, tele_exp_list = args
+    results = {}
+    for tele, exp in tele_exp_list:
+        results[(tele, mjd, exp)] = _get_ar1D_unical_meta(outdir, tele, mjd, exp)
+    return results
+
+
+def _load_almanac_file(input_path):
+    """Load all almanac exposure and fiber data into memory."""
+    import h5py as h5
+    almanac_exposures = {}
+    almanac_fibers = {}
+    obs_mjd_keys = []
+
+    with h5.File(input_path, "r") as fp:
+        obs_mjd_keys = [(obs, int(mjd)) for obs in fp.keys() for mjd in fp[obs].keys()]
+        for obs, mjd in obs_mjd_keys:
+            #if mjd < 57643 or mjd > 57710:
+            #    continue
+            key = (obs, mjd)
+            g = fp[f"{obs}/{mjd}"]
+            almanac_exposures[key] = {k: v[:] for k, v in g["exposures"].items()}
+            almanac_fibers[key] = {
+                int(cfg): {k: v[:] for k, v in g[f"fibers/{cfg}"].items()}
+                for cfg in g.get("fibers", {}).keys()
+            }
+
+    return almanac_exposures, almanac_fibers, obs_mjd_keys
+
+
+def _load_armadgics_files(arMADGICS_paths):
+    """Load arMADGICS scalar arrays from HDF5 files."""
+    import h5py as h5
+    result = {}
+    for path in arMADGICS_paths:
+        basename = os.path.basename(path)
+        key = basename[14:-3]
+        with h5.File(path, "r") as fp:
+            if fp[key].ndim == 1:
+                result[key] = fp[key][:]
+    return result
+
+
+def _load_metadata_pickle(pickle_path):
+    """Load metadata from pickle file."""
+    import pickle
+    with open(pickle_path, "rb") as fp:
+        return pickle.load(fp)
 
 
 @main.command()
@@ -460,10 +501,6 @@ def postprocess(input_path, output_path, processes, **kwargs):
     if not input_path or not output_path:
         return
 
-    #print(input_path)
-    #input_path = "almanac/allobs_57600_61000.h5"
-    #output_path = "/mnt/ceph/users/sdssv/work/acasey/20260114-exposures.h5"
-    #print(kwargs)
     import os
     if not os.path.exists(input_path):
         raise FileNotFoundError(f"The file {input_path} does not exist.")
@@ -475,17 +512,21 @@ def postprocess(input_path, output_path, processes, **kwargs):
 
     from glob import glob
     import h5py as h5
-    import pickle
     import concurrent.futures
     import numpy as np
     import warnings
+    from collections import defaultdict
     from astropy.coordinates import SkyCoord, EarthLocation
     from astropy import units as u
     from astropy.time import Time
 
     from almanac.display import TaskDisplay
     from almanac.data_models.spectrum import Spectrum
-    from almanac.io import _write_models_to_hdf5_group
+    from almanac.io import get_hdf5_dtype, _write_models_to_hdf5_group
+    from pydantic_core import PydanticUndefined
+    from almanac.postprocess import (
+        compute_shadow_heights, compute_observation_metadata, fill_missing_altaz
+    )
 
     from sdss_semaphore.targeting import TargetingFlags
 
@@ -502,99 +543,280 @@ def postprocess(input_path, output_path, processes, **kwargs):
         total = None
         with h5.File(full_list_info_path, "r") as full_list_info:
             keys = list(full_list_info.keys())
-            for i, key in enumerate(keys):
-                if i == 0:
-                    display.add_task("summary", f"Reading {len(full_list_info[key]):,} summary spectra", total=len(keys))
+            display.add_task("summary", f"Reading {len(full_list_info[keys[0]]):,} summary spectra", total=len(keys))
+            for key in keys:
                 data_dict[key] = full_list_info[key][:]
                 display.advance("summary")
-        display.complete("summary")
 
         total = len(data_dict["sdss_id"])
 
-        # Load in the arMADGICS scalar arrays
+        display.add_task("unique_ar1dunical", "Identifying unique ar1Dunical lookups", total=total)
+
+        # Prepare paths for parallel loading
         arMADGICS_dir = f"{outdir}/arMADGICS/wu_th_{arMADGICS_suffix}/"
         arMADGICS_paths = glob(f"{arMADGICS_dir}/arMADGICS_out_*.h5")
+        metadata_pickle_path = "/mnt/home/acasey/almanac/20251128-meta.pkl"
 
-        display.add_task("armadgics", f"Reading {len(arMADGICS_paths)} arMADGICS scalar files", total=len(arMADGICS_paths))
-        display.add_task("map", "Distributing Almanac data", total=total)
-        display.add_task("reduce", "Collecting Almanac data", total=total)
+        # Group lookups by MJD for batched ar1Dunical processing
+        lookups = set()
+        lookups_by_mjd = defaultdict(list)
+        data_dict["tele"] = np.array(data_dict["tele"], dtype=str)
+        data_dict["mjd"] = np.array(data_dict["mjd"], dtype=int)
+        data_dict["expnum"] = np.array(data_dict["expnum"], dtype=int)
+
+        for key in zip(data_dict["tele"], data_dict["mjd"], data_dict["expnum"]):
+            if key not in lookups:
+                lookups.add(key)
+                lookups_by_mjd[key[1]].append((key[0], key[2]))
+            display.advance("unique_ar1dunical")
+
+        n_mjds = len(lookups_by_mjd)
+        n_exposures = len(lookups)
+        batch_args = [(outdir, mjd, tele_exp_list) for mjd, tele_exp_list in lookups_by_mjd.items()]
+
+        # Add all tasks upfront
+        display.add_task("io_parallel", "Loading data in parallel (almanac, arMADGICS, metadata)", total=4)
+        display.add_task("reduce_1d", f"Collecting ar1Dunical data ({n_exposures:,} exposures)", total=n_exposures)
+        display.add_task("prop_1d", "Propagating ar1Dunical data", total=total)
+        display.add_task("reduce", "Processing fiber lookups", total=total)
         display.add_task("v_rad", "Computing radial velocities", total=1)
-        display.add_task("metadata", "Assigning metadata to rows", total=total)
+        display.add_task("shadow_height", "Computing shadow heights", total=1)
+        display.add_task("obs_metadata", "Computing moon phase, separation, and airmass", total=1)
+        display.add_task("altaz", "Filling missing alt/az values", total=1)
+        display.add_task("metadata", "Assigning metadata to rows", total=1)
         display.add_task("targeting", "Aggregating targeting cartons", total=total)
         display.add_task("write", f"Write to {output_path}", total=len(fields))
 
-        for path in arMADGICS_paths:
-            basename = os.path.basename(path)
-            key = basename[14:-3]
-            with h5.File(path, "r") as fp:
-                if fp[key].ndim == 1:
-                    data_dict[key] = fp[key][:]
-            display.advance("armadgics")
-        display.complete("armadgics")
+        # === PARALLEL I/O PHASE ===
+        # Start background I/O tasks while ar1Dunical collection runs in ProcessPool
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as io_executor:
+            # Submit I/O-bound tasks to run in parallel
+            almanac_future = io_executor.submit(_load_almanac_file, input_path)
+            armadgics_future = io_executor.submit(_load_armadgics_files, arMADGICS_paths)
+            metadata_future = io_executor.submit(_load_metadata_pickle, metadata_pickle_path)
+            display.advance("io_parallel") # to trigger something to show
 
-        # Load in the almanac data for every fiber exposure
-        with concurrent.futures.ProcessPoolExecutor(processes) as executor:
-            futures = []
-            for i in range(total):
-                futures.append(
-                    executor.submit(
-                        _get_fiber_exposure,
-                        i,
-                        data_dict["tele"][i].decode(),
-                        data_dict["mjd"][i].decode(),
-                        data_dict["expnum"][i],
-                        data_dict["adjfiberindx"][i],
-                        input_path,
-                        outdir
-                    )
-                )
-                display.advance("map")
-            display.complete("map")
+            # Meanwhile, run ar1Dunical collection (CPU-bound with ProcessPool)
+            ar1D_unical_meta = {}
+            with concurrent.futures.ProcessPoolExecutor(max_workers=processes) as executor:
+                for batch_result in executor.map(_get_ar1D_unical_meta_batch, batch_args):
+                    ar1D_unical_meta.update(batch_result)
+                    display.advance("reduce_1d", len(batch_result))
 
-            for future in concurrent.futures.as_completed(futures):
-                i, d = future.result()
-                for k, v in d.items():
-                    try:
-                        data_dict[k][i] = v
-                    except KeyError:
-                        data_dict.setdefault(k, [None] * total)
-                        data_dict[k][i] = v
+            # Collect parallel I/O results
+            data_dict.update(armadgics_future.result())
+            display.advance("io_parallel")
+            source_meta = metadata_future.result()
+            display.advance("io_parallel")
+            almanac_exposures, almanac_fibers, obs_mjd_keys = almanac_future.result()
+            display.advance("io_parallel")
+
+        #data_dict = { k: v[:1000] for k, v in data_dict.items() }
+
+        # Vectorized ar1D_unical_meta propagation using numpy
+        tele_arr = np.array(data_dict["tele"], dtype=str)
+        mjd_arr = np.array(data_dict["mjd"], dtype=int)
+        expnum_arr = np.asarray(data_dict["expnum"])
+
+        # Pre-allocate numpy arrays for ar1D metadata
+        first_key = next(iter(lookups))
+        ar1d_keys = list(ar1D_unical_meta[first_key].keys())
+        for key in ar1d_keys:
+            sample_val = ar1D_unical_meta[first_key][key]
+            dtype = np.array(sample_val).dtype if not isinstance(sample_val, bool) else bool
+            data_dict[key] = np.empty(total, dtype=dtype)
+
+        # Group rows by (tele, mjd, exp) for vectorized propagation
+        lookup_to_indices = {}
+        for i, key in enumerate(zip(tele_arr, mjd_arr, expnum_arr)):
+            if key not in lookup_to_indices:
+                lookup_to_indices[key] = []
+            lookup_to_indices[key].append(i)
+
+        for lookup_key, indices in lookup_to_indices.items():
+            indices = np.array(indices)
+            meta = ar1D_unical_meta.get(lookup_key, {})
+            for k, v in meta.items():
+                data_dict[k][indices] = v
+            display.advance("prop_1d", len(indices))
+        #del ar1D_unical_meta, lookup_to_indices
+
+        # Vectorized almanac lookups using numpy advanced indexing
+        adj_fiber_arr = np.asarray(data_dict["adjfiberindx"])
+
+        # Group rows by (obs, mjd) for batch processing
+        obs_mjd_to_indices = {}
+        for i, key in enumerate(zip(tele_arr, mjd_arr)):
+            if key not in obs_mjd_to_indices:
+                obs_mjd_to_indices[key] = []
+            obs_mjd_to_indices[key].append(i)
+
+        # Collect all field names we'll encounter (for pre-allocation)
+        all_exp_keys = set()
+        all_fiber_keys = set()
+        for exp_data in almanac_exposures.values():
+            all_exp_keys.update(exp_data.keys())
+        for fiber_dict in almanac_fibers.values():
+            for fiber_data in fiber_dict.values():
+                all_fiber_keys.update(fiber_data.keys())
+
+        # Pre-allocate numpy arrays for almanac data
+        for key in all_exp_keys:
+            if key not in data_dict:
+                sample = next(iter(almanac_exposures.values()))[key]
+                data_dict[key] = np.empty(total, dtype=sample.dtype)
+        for key in all_fiber_keys:
+            if key not in data_dict:
+                for fiber_dict in almanac_fibers.values():
+                    if fiber_dict:
+                        sample = next(iter(fiber_dict.values())).get(key)
+                        if sample is not None:
+                            data_dict[key] = np.empty(total, dtype=sample.dtype)
+                            break
+
+        # Vectorized batch processing per (obs, mjd)
+        # Update total now that we know it (couldn't know until almanac was loaded)
+        display.tasks["reduce"].total = len(obs_mjd_to_indices)
+        for (obs, mjd), indices in obs_mjd_to_indices.items():
+            indices = np.array(indices)
+            exp_data = almanac_exposures.get((obs, mjd), {})
+            if not exp_data:
                 display.advance("reduce")
-            display.complete("reduce")
+                continue
 
-        # Load in metadata
-        # TODO: This will be stored in the almanac file eventually, but for now..
-        with open("/mnt/home/acasey/almanac/20251128-meta.pkl", "rb") as fp:
-            source_meta = pickle.load(fp)
+            # Get exposure indices for these rows (expnum - 1)
+            exp_indices = expnum_arr[indices] - 1
 
-        for i in range(total):
-            for k, v in source_meta.get(data_dict["sdss_id"][i], {}).items():
-                try:
-                    data_dict[k][i] = v
-                except KeyError:
-                    data_dict.setdefault(k, [None] * total)
-                    data_dict[k][i] = v
-            display.advance("metadata")
-        display.complete("metadata")
+            # Assign exposure data (vectorized)
+            for k, v in exp_data.items():
+                data_dict[k][indices] = v[exp_indices]
+
+            # Compute ref_id and fiber_index for all rows in this batch
+            config_ids = exp_data["config_id"][exp_indices]
+            plate_ids = exp_data["plate_id"][exp_indices]
+            ref_ids = np.maximum(config_ids, plate_ids).astype(int)
+
+            fiber_indices = adj_fiber_arr[indices] - 1
+            fiber_indices = np.where(fiber_indices >= 300, fiber_indices - 300, fiber_indices)
+
+            # Process fiber data per unique ref_id in this batch
+            fiber_dict = almanac_fibers[(obs, mjd)]
+            for ref_id in np.unique(ref_ids):
+                ref_mask = ref_ids == ref_id
+                ref_indices = indices[ref_mask]
+                ref_fiber_indices = fiber_indices[ref_mask]
+
+                fiber_data = fiber_dict.get(int(ref_id), {})
+                for k, v in fiber_data.items():
+                    if k in data_dict:
+                        data_dict[k][ref_indices] = v[ref_fiber_indices]
+
+            display.advance("reduce")
+
+        # Free memory
+        #del almanac_exposures, almanac_fibers, obs_mjd_to_indices, tele_arr, mjd_arr
+
+        # Vectorized metadata assignment (source_meta already loaded in parallel)
+        # Build a mapping from sdss_id to row indices
+        sdss_ids = data_dict["sdss_id"]
+        unique_sdss_ids = np.unique(sdss_ids)
+
+        translations = [
+            ("tele", "observatory"),
+            ("expnum", "exposure"),
+            ("starscale", "starscale0"),
+            ("RV_flag", "v_rad_flags"),
+            ("cartid", "cart_id"),
+            ("nSkyFibers", "n_sky_fibers"),
+            ("adjfiberindx", "adjusted_fiber_index"),
+        ]
+        for from_key, to_key in translations:
+            data_dict[to_key] = data_dict.pop(from_key)
+
+        # Collect all metadata keys first
+        meta_keys = set()
+        for sid in unique_sdss_ids:
+            meta_keys.update(source_meta.get(sid, {}).keys())
+
+        # Build lookup: key (field name or alias) -> field_info for Spectrum model
+        spectrum_field_lookup = {}
+        for field_name, field_info in Spectrum.model_fields.items():
+            spectrum_field_lookup[field_name] = field_info
+            if field_info.alias:
+                spectrum_field_lookup[field_info.alias] = field_info
+
+        # Pre-allocate arrays for metadata fields
+        for key in meta_keys:
+            if key not in data_dict:
+                # Skip keys not accepted by Spectrum model (as field or alias)
+                if key not in spectrum_field_lookup:
+                    print(f"Skipping key {key}")
+                    continue
+
+                field_info = spectrum_field_lookup[key]
+                hdf5_dtype = get_hdf5_dtype(field_info.annotation)
+
+                # Get default from model, with fallback for required fields
+                default = field_info.default
+                if default is PydanticUndefined:
+                    if np.issubdtype(np.dtype(hdf5_dtype), np.floating):
+                        default = np.nan
+                    elif np.issubdtype(np.dtype(hdf5_dtype), np.integer):
+                        default = -1
+                    elif np.dtype(hdf5_dtype).char == 'S':
+                        default = ""
+                    else:
+                        default = 0
+
+                data_dict[key] = np.full(total, default, dtype=hdf5_dtype)
+
+        data_dict["carton_pks"] = [None] * total
+
+        # Vectorized assignment: group by sdss_id
+        sdss_id_to_indices = {}
+        for i, sid in enumerate(sdss_ids):
+            if sid not in sdss_id_to_indices:
+                sdss_id_to_indices[sid] = []
+            sdss_id_to_indices[sid].append(i)
+
+        for sid, indices in sdss_id_to_indices.items():
+            meta = source_meta.get(sid, {})
+            if meta:
+                indices = np.array(indices)
+                for k, v in meta.items():
+                    # safeguard against situations where we test with small
+                    # samples of stars that lack some metadata fields
+                    if v is not None:
+                        if k == "carton_pks":
+                            for index in indices:
+                                data_dict[k][index] = v
+                        elif k in data_dict:
+                            data_dict[k][indices] = v
+        display.advance("metadata")
+
+        C_KM_S = 299792.458
 
         def propagate_pixels_to_z(p, δλ=6e-6):
             return δλ * np.log(10) * 10**(p * δλ)
 
-        def propagate_z_to_v(z, c=299792.458):
-            return np.abs(4 * (z + 1) / (((z + 1) ** 2 + 1) ** 2)) * c
+        def propagate_z_to_v(z):
+            return np.abs(4 * (z + 1) / (((z + 1) ** 2 + 1) ** 2)) * C_KM_S
 
         def pixels_to_z(x, delta=6e-6):
             return 10**(x * delta) - 1
 
-        def z_to_v(z, c=299792.458):
-            return ((z+1)**2-1)/((z+1)**2+1)*c
+        def z_to_v(z):
+            return ((z+1)**2-1)/((z+1)**2+1)*C_KM_S
 
-        def v_to_z(v, c=299792.458):
-            return v / c
+        def v_to_z(v):
+            return v / C_KM_S
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
-            e_z = propagate_pixels_to_z(np.array(data_dict["RV_pixoff_final"])) * np.sqrt(np.array(data_dict["RV_pix_var"]))
+            e_z = (
+                propagate_pixels_to_z(np.array(data_dict["RV_pixoff_final"]))
+            *   np.sqrt(np.array(data_dict["RV_pix_var"]))
+            )
         z = pixels_to_z(np.array(data_dict["RV_pixoff_final"]))
 
         ra, dec, mjd_mid_exposure = map(np.array, (
@@ -604,7 +826,7 @@ def postprocess(input_path, output_path, processes, **kwargs):
         data_dict["v_barycentric_correction"] = np.nan * np.ones(total)
         for obs in ("apo", "lco"):
             mask = (
-                (np.array(data_dict["tele"]).astype(str) == obs)
+                (np.array(data_dict["observatory"]).astype(str) == obs)
             *   (np.isfinite(ra))
             *   (np.isfinite(dec))
             *   (np.isfinite(mjd_mid_exposure))
@@ -629,25 +851,51 @@ def postprocess(input_path, output_path, processes, **kwargs):
             v_rad=z_to_v(z + z_corr + z_corr * z),
             e_v_rad=propagate_z_to_v(z) * e_z,
         )
-        display.complete("v_rad")
+        display.advance("v_rad")
 
-        translations = [
-            ("tele", "observatory"),
-            ("expnum", "exposure"),
-            ("starscale", "starscale0"),
-            ("RV_flag", "v_rad_flags"),
-            ("cartid", "cart_id"),
-            ("nSkyFibers", "n_sky_fibers"),
-            ("adjfiberindx", "adjusted_fiber_index"),
-        ]
-        for from_key, to_key in translations:
-            data_dict[to_key] = data_dict.pop(from_key)
+        # Compute shadow heights
 
+        # Convert MJD to JD for shadow height calculation
+        jd_mid_exposure = mjd_mid_exposure + 2400000.5
+        observatory_arr = np.array(data_dict["observatory"]).astype(str)
+
+        data_dict["shadow_height"] = compute_shadow_heights(
+            ra=ra,
+            dec=dec,
+            jd=jd_mid_exposure,
+            observatory=observatory_arr,
+            unit="km",
+        )
+        display.advance("shadow_height")
+
+        # Compute moon phase, moon separation, and airmass
+        obs_meta = compute_observation_metadata(
+            ra=ra,
+            dec=dec,
+            mjd=mjd_mid_exposure,
+            observatory=observatory_arr,
+        )
+        data_dict.update(obs_meta)
+        display.advance("obs_metadata")
+
+        # Fill in missing alt/az values (not reported in earlier pipeline years)
+
+        alt = np.array(data_dict.get("alt", np.full(total, np.nan)))
+        az = np.array(data_dict.get("az", np.full(total, np.nan)))
+        data_dict["alt"], data_dict["az"] = fill_missing_altaz(
+            ra=ra,
+            dec=dec,
+            mjd=mjd_mid_exposure,
+            observatory=observatory_arr,
+            alt=alt,
+            az=az,
+        )
+        display.advance("altaz")
 
         flags = TargetingFlags(np.zeros((total, 1)))
 
         n_unknown_carton_assignments = 0
-        for i, carton_pks in enumerate(data_dict["carton_pks"]):
+        for i, carton_pks in enumerate(data_dict.pop("carton_pks", [])):
             for carton_pk in (carton_pks or {}):
                 try:
                     flags.set_bit_by_carton_pk(i, carton_pk)
@@ -656,14 +904,6 @@ def postprocess(input_path, output_path, processes, **kwargs):
             display.advance("targeting")
 
         data_dict["sdss5_target_flags"] = flags.array
-
-        # Last check point for fields
-        expected = set(fields)
-        actual = set(data_dict.keys())
-        missing_fields = expected - actual
-        ignored_fields = actual - expected
-        for key in missing_fields:
-            data_dict[key] = [None] * total
 
         def callback(*args, **kwargs):
             try:
@@ -678,14 +918,17 @@ def postprocess(input_path, output_path, processes, **kwargs):
                 fp,
                 callback=callback
             )
-        display.complete("write")
 
-        if n_unknown_carton_assignments > 0:
-            print(f"Warning: {n_unknown_carton_assignments:,} unknown carton assignments encountered")
+    if n_unknown_carton_assignments > 0:
+        click.echo(f"Warning: {n_unknown_carton_assignments:,} unknown carton assignments encountered")
 
-        for key in ignored_fields:
-            print(f"Warning: ignored field {key} in data_dict")
-
+    # Last check point for fields
+    expected = set(fields)
+    actual = set(data_dict.keys())
+    for key in (actual - expected):
+        click.echo(f"Warning: ignored field {key} in data_dict")
+    for key in (expected - actual):
+        click.echo(f"Warning: missing field {key}")
 
 
 

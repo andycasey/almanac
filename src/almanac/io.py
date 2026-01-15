@@ -149,6 +149,7 @@ def get_hdf5_dtype(pydantic_type, sample_value=None):
         datetime.datetime: 'S19',  # ISO format YYYY-MM-DDTHH:MM:SS
         datetime.date: 'S10',      # ISO format YYYY-MM-DD
         datetime.time: 'S8',       # Format HH:MM:SS
+        np.ndarray: np.ndarray,
     }
 
     # Direct type mapping
@@ -157,8 +158,8 @@ def get_hdf5_dtype(pydantic_type, sample_value=None):
 
         # Handle string length determination
         if dtype == 'S' and sample_value is not None:
-            if isinstance(sample_value, (list, tuple)):
-                max_len = max(len(str(v)) for v in sample_value) if sample_value else 1
+            if isinstance(sample_value, (list, tuple, np.ndarray)):
+                max_len = max(len(str(v)) for v in sample_value)
             else:
                 max_len = len(str(sample_value)) if sample_value else 1
             return f'S{max_len}'
@@ -267,16 +268,57 @@ def _write_models_to_hdf5_group(
     hdf5_group,
     chunk_size: int = 1000,
     compression: str = None,
-    callback: Any = None
+    callback: Any = None,
+    num_records: int = None,
 ):
-    num_records = None
     if callback is None:
         callback = lambda *_, **__: None
+
+    # Determine num_records from existing data if not provided
+    if num_records is None:
+        for field_name in fields:
+            if field_name in data:
+                num_records = len(data[field_name])
+                break
 
     for field_name, field_spec in fields.items():
 
         # Extract data for this field from all models
-        field_data = data[field_name]
+        try:
+            field_data = data[field_name]
+        except KeyError:
+            # Field is missing - create array with appropriate default value
+            if num_records is None:
+                print(f"Warning: missing {field_name} and cannot determine array size")
+                callback(field_name)
+                continue
+
+            # Get the field type
+            if isinstance(field_spec, FieldInfo):
+                field_type = field_spec.annotation
+            else:
+                field_type = field_spec.return_type
+
+            # Get the HDF5 dtype
+            hdf5_dtype = get_hdf5_dtype(field_type)
+
+            # Get default from field_spec, with fallback for required fields
+            default = getattr(field_spec, 'default', PydanticUndefined)
+            if default is PydanticUndefined or default is None:
+                if np.issubdtype(np.dtype(hdf5_dtype), np.floating):
+                    default = np.nan
+                elif np.issubdtype(np.dtype(hdf5_dtype), np.integer):
+                    default = -1
+                elif np.dtype(hdf5_dtype).kind == 'S':
+                    default = b""
+                elif np.dtype(hdf5_dtype) == np.bool_:
+                    default = False
+                else:
+                    default = 0
+
+            # Create array filled with default value
+            field_data = np.full(num_records, default, dtype=hdf5_dtype)
+
         if num_records is None:
             num_records = len(field_data)
 
@@ -289,37 +331,51 @@ def _write_models_to_hdf5_group(
 
         hdf5_dtype = get_hdf5_dtype(field_type, field_data)
 
-        # Convert values for HDF5 storage
-        converted_data = [convert_value_for_hdf5(value, np.dtype(hdf5_dtype))
-                         for value in field_data]
-
-        # Handle variable-length data (like lists)
-        if any(isinstance(value, list) for value in converted_data):
-            # Create variable-length dataset
-            dt = h5py.special_dtype(vlen=np.dtype(hdf5_dtype))
-            dataset = hdf5_group.create_dataset(
-                field_name,
-                (num_records,),
-                dtype=dt,
-                chunks=True if num_records > chunk_size else None,
-                compression=compression if num_records > chunk_size else None
-            )
-            dataset[:] = converted_data
-        else:
-            # Create regular dataset
-            np_array = np.array(converted_data, dtype=hdf5_dtype)
-
+        if field_spec.annotation is np.ndarray:
             chunks = (min(chunk_size, num_records),) if num_records > chunk_size else None
-            if np_array.ndim > 1 and chunks is not None:
-                chunks = (chunks[0], np_array.shape[1])
+            if field_data.ndim > 1 and chunks is not None:
+                chunks = (chunks[0], field_data.shape[1])
             compression_setting = compression if num_records > chunk_size else None
 
             dataset = hdf5_group.create_dataset(
                 field_name,
-                data=np_array,
+                data=field_data,
                 chunks=chunks,
                 compression=compression_setting
             )
+
+        else:
+            # Convert values for HDF5 storage
+            converted_data = [convert_value_for_hdf5(value, np.dtype(hdf5_dtype))
+                            for value in field_data]
+
+            # Handle variable-length data (like lists)
+            if any(isinstance(value, list) for value in converted_data):
+                # Create variable-length dataset
+                dt = h5py.special_dtype(vlen=np.dtype(hdf5_dtype))
+                dataset = hdf5_group.create_dataset(
+                    field_name,
+                    (num_records,),
+                    dtype=dt,
+                    chunks=True if num_records > chunk_size else None,
+                    compression=compression if num_records > chunk_size else None
+                )
+                dataset[:] = converted_data
+            else:
+                # Create regular dataset
+                np_array = np.array(converted_data, dtype=hdf5_dtype)
+
+                chunks = (min(chunk_size, num_records),) if num_records > chunk_size else None
+                if np_array.ndim > 1 and chunks is not None:
+                    chunks = (chunks[0], np_array.shape[1])
+                compression_setting = compression if num_records > chunk_size else None
+
+                dataset = hdf5_group.create_dataset(
+                    field_name,
+                    data=np_array,
+                    chunks=chunks,
+                    compression=compression_setting
+                )
 
         # Add description, even if it is empty string.
         dataset.attrs["description"] = field_spec.description or ""

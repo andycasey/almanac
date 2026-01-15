@@ -1,8 +1,10 @@
-from pydantic import Field
+from typing import Optional
+from pydantic import BaseModel, Field
+
 from almanac.data_models.types import *
 from almanac.data_models.source import Source
 
-class Spectrum(Source):
+class ReducedSpectrum(Source):
     """
     A data model combining exposure-level, fiber-level, and target-level information.
 
@@ -14,10 +16,10 @@ class Spectrum(Source):
     observatory: Observatory = Field(description="Observatory name")
     mjd: int = Field(description="MJD of the exposure")
     exposure: int = Field(description="Exposure number", ge=1)
-    prefix: Prefix = Field(description="Raw exposure basename prefix", default=None)
+    prefix: Optional[Prefix] = Field(description="Raw exposure basename prefix", default=None)
 
     #> Exposure Metadata
-    name: str = Field(
+    name: Optional[str] = Field(
         default="",
         description=(
             "The `name` field in the exposure header often refers to the plugged "
@@ -26,7 +28,7 @@ class Spectrum(Source):
     )
     n_read: int = Field(default=0, alias="nread", ge=0)
     image_type: ImageType = Field(alias="imagetyp")
-    observer_comment: str = Field(default="", alias="obscmnt")
+    observer_comment: Optional[str] = Field(default="", alias="obscmnt")
 
     #> Exposure Identifiers
     map_id: int = Field(default=-1, alias="mapid")
@@ -61,7 +63,9 @@ class Spectrum(Source):
     zoffset: float = Field(description="Z offset (plate era)", default=0.0)
 
     #> Target Identification
-    twomass_designation: str = Field(default="", alias="tmass_id")
+    sdss_id: Int64 = Field(default=-1)
+    catalogid: Int64 = Field(default=-1)
+    twomass_designation: Annotated[str, Field(default="", alias="tmass_id"), BeforeValidator(validate_str)]
     target_ids: str = Field(alias="targetids", default="", description="Legacy target IDs (plate era)")
     category: Category = Field(description="Category of the target")
     cadence: str = Field(description="Cadence identifier", default="")
@@ -82,7 +86,6 @@ class Spectrum(Source):
             "and no targeting information available"
         )
     )
-    fps: bool = Field(description="Fiber Positioning System (FPS) was used")
 
     #> Position Coordinates (Common)
     x_focal: float = Field(description="x-coordinate in the focal plane", default=float('NaN'), alias='xFocal')
@@ -136,41 +139,20 @@ class Spectrum(Source):
     dec: float = Field(alias="deccat", description="Declination [deg]")
     alt: float = Field(description="Altitude of the fiber on the sky [deg]", default=float('NaN'), alias="alt_observed")
     az: float = Field(description="Azimuth of the fiber on the sky [deg]", default=float('NaN'), alias="az_observed")
-    airmass: float = Field(description="Airmass at the time of observation", default=float('NaN'))
-    shadow_height: float = Field(description="Shadow height [m]", default=float('NaN'))
-    moon_separation: float = Field(description="Separation from the moon [deg]", default=float('NaN'))
-    moon_phase: float = Field(description="Phase of the moon [0-1]", default=float('NaN'))
 
-
-    #> ApogeeReduction.jl
-    git_branch: str = Field(description="Git branch of ApogeeReduction.jl used", default="")
-    git_clean: int = Field(description="Whether the ApogeeReduction.jl git repository was clean", default=-1)
-    git_commit: str = Field(description="Git commit hash of ApogeeReduction.jl used", default="")
-
-    mjd_mid_exposure: float = Field(description="Modified Julian Date at mid-point of exposure", default=float('NaN'))
-    ndiff_used: int = Field(description="Number of difference reads used", default=-1)
-    nread_total: int = Field(description="Number of total reads", default=-1)
-
-    n_sky_fibers: int = Field(description="Number of sky fibers used in the exposure", default=-1, alias="nSkyFibers")
-    extraction_method: str = Field(description="Extraction method used", default="")
-    trace_found_match: int = Field(description="Number of traces found that match expected positions", default=-1)
-    trace_orig_param_fname: str = Field(description="Filename of original trace parameters", default="")
-    trace_type: str = Field(description="Type of trace used", default="")
-    wavecal_type: str = Field(description="Type of wavelength calibration used", default="")
-    bitmsk_relFluxFile: int = Field(description="Bitmask indicating issues with relative flux file", default=-1) # TODO: naming
-    flag_missing_ar1dunical: int = Field(description="Flag indicating missing ar1dunical file", default=-1)
-    chip_flags: int = Field(description="Bitmask of chip-level flags", default=0)
-    snr: float = Field(description="Signal-to-noise ratio of the reduced spectrum", default=float('NaN'))
+    #> Target of Opportunity (FPS)
+    too: bool = Field(default=False, description="Target of opportunity (FPS era)")
+    too_id: int = Field(default=-1, description="Target of opportunity ID (FPS era)")
+    too_program: str = Field(default="", description="Target of opportunity program (FPS era)")
 
     #> ARMADGICS
-    adjusted_fiber_index: int = Field(description="Unique fiber identifier running 1 to 600 to handle fibers at both APO and LCO", default=0)
-    linear_index: int = Field(description="Index used during batch processing", default=-1)
+    RV_flag: int = Field(description="Grid search flag value from apMADGICS from the search for stellar radial velocity. See https://github.com/andrew-saydjari/apMADGICS.jl for bit interpretations.", default=-1)
     RV_minchi2_final: float = Field(description="Value of the minimum on the delta chi2 surface for the stellar radial velocity determinination step in apMADGICS", default=float('NaN'))
     RV_pix_var: float = Field(description="Stellar radial velocity uncertainty expressed as a variance in the pixel offset [pixels]", default=float('NaN'))
-    RV_pixoff_disc_final: float = Field(description="Discrete (grid point) pixel offset nearest stellar radial velocity optimum [pixels]", default=float('NaN'))
-    RV_pixoff_final: float = Field(description="Pixel offset nearest stellar radial velocity optimum", default=float('NaN'))
+    RV_pixoff_disc_final: float = Field(description="Pixel offset at nearest stellar radial velocity optimum [pixels]", default=-9999) # TODO
+    RV_pixoff_final: float = Field(description="Pixel offset at nearest stellar radial velocity optimum", default=float('NaN'))
     RVchi2_residuals: float = Field(description="Chi2 value for the residual component after the RV fitting step for the apMADGICS component separation", default=float('NaN'))
-    adjfiberindx: int = Field(description="Unique fiber identifier running 1 to 600 to handle fibers at both APO and LCO", default=0)
+    adjfiberindx: float = Field(description="A unique fiber identifier running 1 to 600 to handle fibers at both APO and LCO", default=float('NaN'))
     avg_flux_conservation: float = Field(description="Median fractional flux conservation of MADGICS component separation across the visit spectrum", default=float('NaN'))
     data_pix_cnt: float = Field(description="Number of unmasked pixels in the input spectrum to apMADGICS component separation", default=float('NaN'))
     final_pix_cnt: float = Field(description="Final number of unmasked pixels used for modeling the visit spectrum", default=float('NaN'))
@@ -185,6 +167,10 @@ class Spectrum(Source):
     #> Radial Velocities
     v_rad: float = Field(description="Barycentric rest frame radial velocity [km/s]", default=float('NaN'))
     e_v_rad: float = Field(description="Uncertainty on barycentric rest frame radial velocity [km/s]", default=float('NaN'))
-    v_rel: float = Field(description="Relative radial velocity [km/s]", default=float('NaN'))
     v_barycentric_correction: float = Field(description="Barycentric velocity correction applied [km/s]", default=float('NaN'))
-    v_rad_flags: int = Field(description="Grid search flag value from apMADGICS from the search for stellar radial velocity. See https://github.com/andrew-saydjari/apMADGICS.jl for bit interpretations.", default=-1, alias="RV_flag")
+
+
+    class Config:
+        validate_by_name = True
+        validate_assignment = True
+        arbitrary_types_allowed = True

@@ -459,8 +459,25 @@ class TaskDisplay:
         self.tasks[task_id].status = TaskStatus.RUNNING
         self._refresh()
 
+    def update_task(self, task_id: str, total: int = None, name: str = None):
+        """Update task properties like total or name."""
+        task = self.tasks[task_id]
+        if total is not None:
+            task.total = total
+        if name is not None:
+            task.name = name
+        task.status = TaskStatus.RUNNING
+        self._refresh()
+
     def advance(self, task_id: str, amount: int = 1):
-        self.tasks[task_id].completed += amount
+        task = self.tasks[task_id]
+        # Auto-start on first advance
+        if task.status == TaskStatus.PENDING:
+            task.status = TaskStatus.RUNNING
+        task.completed += amount
+        # Auto-complete when we reach total
+        if task.total is not None and task.completed >= task.total:
+            task.status = TaskStatus.COMPLETED
         self._refresh()
 
     def complete(self, task_id: str):
@@ -491,7 +508,7 @@ class TaskDisplay:
         }
 
         for task in self.tasks.values():
-            pct = task.completed / task.total if task.total > 0 else 0
+            pct = task.completed / task.total if task.total and task.total > 0 else 0
             bar_width = 15
             filled = int(bar_width * pct)
 
