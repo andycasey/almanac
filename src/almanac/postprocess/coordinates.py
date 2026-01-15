@@ -8,6 +8,7 @@ This module provides efficient batched calculations for:
 """
 
 import numpy as np
+import warnings
 from astropy import units as u
 from astropy.coordinates import (
     EarthLocation,
@@ -16,6 +17,7 @@ from astropy.coordinates import (
     get_body,
 )
 from astropy.time import Time
+from erfa import ErfaWarning
 from typing import Literal
 
 # Observatory definitions
@@ -23,6 +25,10 @@ OBSERVATORIES = {
     "apo": EarthLocation.of_site("Apache Point Observatory"),
     "lco": EarthLocation.of_site("Las Campanas Observatory"),
 }
+
+# Minimum valid MJD: roughly MJD 40000 (around 1968) to avoid ERFA warnings
+# about "dubious year" for dates before UTC was well-defined
+MIN_VALID_MJD = 40000
 
 
 def compute_moon_phase(time: Time) -> np.ndarray:
@@ -183,6 +189,63 @@ def compute_altaz(
     return altaz.alt.deg, altaz.az.deg
 
 
+# =============================================================================
+# Chunk worker functions for parallel processing
+# These are designed to be called by ProcessPoolExecutor
+# =============================================================================
+
+
+def compute_observation_metadata_chunk(ra, dec, mjd, obs_name):
+    """
+    Compute moon phase, moon separation, airmass, alt, and az for a chunk.
+
+    This function is designed to be called by a ProcessPoolExecutor.
+
+    Parameters
+    ----------
+    ra : np.ndarray
+        Right ascension in degrees.
+    dec : np.ndarray
+        Declination in degrees.
+    mjd : np.ndarray
+        Modified Julian Date of observations.
+    obs_name : str
+        Observatory identifier ('apo' or 'lco').
+
+    Returns
+    -------
+    dict
+        Dictionary with 'moon_phase', 'moon_separation', 'airmass', 'alt', 'az'.
+    """
+    location = OBSERVATORIES[obs_name]
+
+    # Suppress ERFA warnings about "dubious year"
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=ErfaWarning)
+
+        t = Time(mjd, format="mjd")
+
+        # Moon phase
+        moon_phase = compute_moon_phase(t)
+
+        # Moon separation
+        moon_separation = compute_moon_separation(ra, dec, t)
+
+        # Airmass
+        airmass = compute_airmass(ra, dec, t, location)
+
+        # Alt/Az
+        alt, az = compute_altaz(ra, dec, t, location)
+
+    return {
+        "moon_phase": moon_phase,
+        "moon_separation": moon_separation,
+        "airmass": airmass,
+        "alt": alt,
+        "az": az,
+    }
+
+
 def fill_missing_altaz(
     ra: np.ndarray,
     dec: np.ndarray,
@@ -190,6 +253,8 @@ def fill_missing_altaz(
     observatory: np.ndarray,
     alt: np.ndarray,
     az: np.ndarray,
+    mjd_precision: float = 0.01,
+    progress_callback: callable = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Fill in missing (NaN) altitude and azimuth values.
@@ -212,6 +277,10 @@ def fill_missing_altaz(
         Existing altitude values (may contain NaN).
     az : np.ndarray
         Existing azimuth values (may contain NaN).
+    mjd_precision : float, optional
+        Precision for grouping MJDs (default: 0.01 days ~ 15 min).
+    progress_callback : callable, optional
+        Function to call after each batch with number of items processed.
 
     Returns
     -------
@@ -234,19 +303,23 @@ def fill_missing_altaz(
     # Find entries that need computation (either alt or az is NaN)
     needs_compute = ~np.isfinite(alt) | ~np.isfinite(az)
 
-    # Also need valid coordinates
+    # Also need valid coordinates and dates
     valid_coords = (
         np.isfinite(ra)
         & np.isfinite(dec)
         & np.isfinite(mjd)
         & (ra >= 0) & (ra <= 360)
         & (dec >= -90) & (dec <= 90)
+        & (mjd >= MIN_VALID_MJD)
     )
 
     to_compute = needs_compute & valid_coords
 
     if not np.any(to_compute):
         return alt, az
+
+    # Round MJDs to group similar times
+    mjd_rounded = np.round(mjd / mjd_precision) * mjd_precision
 
     obs_lower = np.char.lower(np.char.strip(observatory.astype(str)))
     unique_obs = np.unique(obs_lower[to_compute])
@@ -262,21 +335,28 @@ def fill_missing_altaz(
         if not np.any(obs_mask):
             continue
 
-        # Group by unique MJD for this observatory
-        obs_mjds = mjd[obs_mask]
-        unique_obs_mjds = np.unique(obs_mjds)
+        # Group by unique rounded MJD for this observatory
+        obs_mjds_rounded = mjd_rounded[obs_mask]
+        unique_obs_mjds = np.unique(obs_mjds_rounded)
 
         for mjd_val in unique_obs_mjds:
-            mjd_mask = obs_mask & (mjd == mjd_val)
+            mjd_mask = obs_mask & (mjd_rounded == mjd_val)
             if not np.any(mjd_mask):
                 continue
 
-            t = Time(mjd_val, format="mjd")
-            computed_alt, computed_az = compute_altaz(
-                ra[mjd_mask], dec[mjd_mask], t, location
-            )
+            # Suppress ERFA warnings about "dubious year" for dates at the edge
+            # of ERFA's leap second predictions - these are benign for our use case
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=ErfaWarning)
+                t = Time(mjd_val, format="mjd")
+                computed_alt, computed_az = compute_altaz(
+                    ra[mjd_mask], dec[mjd_mask], t, location
+                )
             alt[mjd_mask] = computed_alt
             az[mjd_mask] = computed_az
+
+            if progress_callback:
+                progress_callback(np.sum(mjd_mask))
 
     return alt, az
 
@@ -286,6 +366,8 @@ def compute_observation_metadata(
     dec: np.ndarray,
     mjd: np.ndarray,
     observatory: np.ndarray,
+    mjd_precision: float = 0.01,
+    progress_callback: callable = None,
 ) -> dict:
     """
     Compute moon phase, moon separation, and airmass for batched observations.
@@ -304,6 +386,11 @@ def compute_observation_metadata(
         Modified Julian Dates.
     observatory : np.ndarray
         Observatory identifiers ('apo' or 'lco') for each observation.
+    mjd_precision : float, optional
+        Precision for grouping MJDs (default: 0.01 days ~ 15 min).
+        Observations within this range use the same ephemeris calculation.
+    progress_callback : callable, optional
+        Function to call after each batch with number of items processed.
 
     Returns
     -------
@@ -342,13 +429,14 @@ def compute_observation_metadata(
     moon_separation = np.full(n, np.nan)
     airmass = np.full(n, np.nan)
 
-    # Create mask for valid coordinates
+    # Create mask for valid coordinates and dates
     valid_coords = (
         np.isfinite(ra)
         & np.isfinite(dec)
         & np.isfinite(mjd)
         & (ra >= 0) & (ra <= 360)
         & (dec >= -90) & (dec <= 90)
+        & (mjd >= MIN_VALID_MJD)
     )
 
     if not np.any(valid_coords):
@@ -358,62 +446,73 @@ def compute_observation_metadata(
             "airmass": airmass,
         }
 
+    # Round MJDs to group similar times (reduces ephemeris calculations)
+    mjd_rounded = np.round(mjd / mjd_precision) * mjd_precision
+
     # Process by observatory for airmass calculation
     # Moon phase and separation don't depend on observatory location
     obs_lower = np.char.lower(np.char.strip(observatory.astype(str)))
     unique_obs = np.unique(obs_lower[valid_coords])
 
-    # First compute moon phase and separation for all valid observations
-    # Group by unique MJD for efficiency
-    valid_mjds = mjd[valid_coords]
-    unique_mjds = np.unique(valid_mjds)
+    # Get unique rounded MJDs for efficiency
+    valid_mjds_rounded = mjd_rounded[valid_coords]
+    unique_mjds = np.unique(valid_mjds_rounded)
 
-    # For moon phase, we only need to compute once per unique MJD
-    mjd_to_phase = {}
-    for mjd_val in unique_mjds:
-        t = Time(mjd_val, format="mjd")
-        mjd_to_phase[mjd_val] = compute_moon_phase(t)
+    # Suppress ERFA warnings about "dubious year" for dates at the edge
+    # of ERFA's leap second predictions - these are benign for our use case
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=ErfaWarning)
 
-    # Assign moon phase values
-    for i in np.where(valid_coords)[0]:
-        moon_phase[i] = mjd_to_phase[mjd[i]]
+        # For moon phase, we only need to compute once per unique rounded MJD
+        mjd_to_phase = {}
+        for mjd_val in unique_mjds:
+            t = Time(mjd_val, format="mjd")
+            mjd_to_phase[mjd_val] = compute_moon_phase(t)
 
-    # For moon separation, we need (ra, dec, mjd) - group by MJD
-    for mjd_val in unique_mjds:
-        mjd_mask = valid_coords & (mjd == mjd_val)
-        if not np.any(mjd_mask):
-            continue
+        # Assign moon phase values using rounded MJD lookup
+        valid_indices = np.where(valid_coords)[0]
+        for i in valid_indices:
+            moon_phase[i] = mjd_to_phase[mjd_rounded[i]]
 
-        t = Time(mjd_val, format="mjd")
-        moon_separation[mjd_mask] = compute_moon_separation(
-            ra[mjd_mask], dec[mjd_mask], t
-        )
-
-    # For airmass, we need (ra, dec, mjd, observatory)
-    for obs in unique_obs:
-        obs_str = str(obs).lower().strip()
-        if obs_str not in OBSERVATORIES:
-            continue
-
-        location = OBSERVATORIES[obs_str]
-        obs_mask = valid_coords & (obs_lower == obs_str)
-
-        if not np.any(obs_mask):
-            continue
-
-        # Group by unique MJD for this observatory
-        obs_mjds = mjd[obs_mask]
-        unique_obs_mjds = np.unique(obs_mjds)
-
-        for mjd_val in unique_obs_mjds:
-            mjd_mask = obs_mask & (mjd == mjd_val)
+        # For moon separation, we need (ra, dec, mjd) - group by rounded MJD
+        for mjd_val in unique_mjds:
+            mjd_mask = valid_coords & (mjd_rounded == mjd_val)
             if not np.any(mjd_mask):
                 continue
 
             t = Time(mjd_val, format="mjd")
-            airmass[mjd_mask] = compute_airmass(
-                ra[mjd_mask], dec[mjd_mask], t, location
+            moon_separation[mjd_mask] = compute_moon_separation(
+                ra[mjd_mask], dec[mjd_mask], t
             )
+
+            if progress_callback:
+                progress_callback(np.sum(mjd_mask))
+
+        # For airmass, we need (ra, dec, mjd, observatory)
+        for obs in unique_obs:
+            obs_str = str(obs).lower().strip()
+            if obs_str not in OBSERVATORIES:
+                continue
+
+            location = OBSERVATORIES[obs_str]
+            obs_mask = valid_coords & (obs_lower == obs_str)
+
+            if not np.any(obs_mask):
+                continue
+
+            # Group by unique rounded MJD for this observatory
+            obs_mjds_rounded = mjd_rounded[obs_mask]
+            unique_obs_mjds = np.unique(obs_mjds_rounded)
+
+            for mjd_val in unique_obs_mjds:
+                mjd_mask = obs_mask & (mjd_rounded == mjd_val)
+                if not np.any(mjd_mask):
+                    continue
+
+                t = Time(mjd_val, format="mjd")
+                airmass[mjd_mask] = compute_airmass(
+                    ra[mjd_mask], dec[mjd_mask], t, location
+                )
 
     return {
         "moon_phase": moon_phase,

@@ -11,6 +11,7 @@ at celestial coordinates) with the Earth's shadow cone, cast by the Sun.
 """
 
 import numpy as np
+import warnings
 from astropy import units as u
 from astropy.coordinates import (
     EarthLocation,
@@ -20,6 +21,7 @@ from astropy.coordinates import (
     AltAz,
 )
 from astropy.time import Time
+from erfa import ErfaWarning
 from typing import Literal, Optional
 
 # Observatory definitions using astropy's EarthLocation
@@ -106,30 +108,36 @@ class ShadowHeightCalculator:
         if self._cached_jd == jd:
             return
 
-        t = Time(jd, format="jd", scale="tt")
+        # Suppress ERFA warnings about "dubious year" for dates at the edge
+        # of ERFA's leap second predictions - these are benign for our use case
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=ErfaWarning)
 
-        # Get barycentric positions in AU
-        earth_bary = get_body_barycentric("earth", t)
-        sun_bary = get_body_barycentric("sun", t)
+            t = Time(jd, format="jd", scale="tt")
 
-        self._xyz_earth = np.array([
-            earth_bary.x.to(u.au).value,
-            earth_bary.y.to(u.au).value,
-            earth_bary.z.to(u.au).value,
-        ])
-        self._xyz_sun = np.array([
-            sun_bary.x.to(u.au).value,
-            sun_bary.y.to(u.au).value,
-            sun_bary.z.to(u.au).value,
-        ])
+            # Get barycentric positions in AU
+            earth_bary = get_body_barycentric("earth", t)
+            sun_bary = get_body_barycentric("sun", t)
 
-        # Observatory position relative to Earth center in AU
-        obs_gcrs = self._location.get_gcrs(t)
-        obs_offset = np.array([
-            obs_gcrs.cartesian.x.to(u.au).value,
-            obs_gcrs.cartesian.y.to(u.au).value,
-            obs_gcrs.cartesian.z.to(u.au).value,
-        ])
+            self._xyz_earth = np.array([
+                earth_bary.x.to(u.au).value,
+                earth_bary.y.to(u.au).value,
+                earth_bary.z.to(u.au).value,
+            ])
+            self._xyz_sun = np.array([
+                sun_bary.x.to(u.au).value,
+                sun_bary.y.to(u.au).value,
+                sun_bary.z.to(u.au).value,
+            ])
+
+            # Observatory position relative to Earth center in AU
+            obs_gcrs = self._location.get_gcrs(t)
+            obs_offset = np.array([
+                obs_gcrs.cartesian.x.to(u.au).value,
+                obs_gcrs.cartesian.y.to(u.au).value,
+                obs_gcrs.cartesian.z.to(u.au).value,
+            ])
+
         self._xyz_observatory = self._xyz_earth + obs_offset
 
         # Shadow cone axis unit vector (pointing from Earth toward Sun)
@@ -258,7 +266,9 @@ class ShadowHeightCalculator:
             t1[t1 < 0] = np.nan
             t2[t2 < 0] = np.nan
 
-            dist[valid] = np.nanmin(np.column_stack([t1, t2]), axis=1)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=RuntimeWarning)
+                dist[valid] = np.nanmin(np.column_stack([t1, t2]), axis=1)
 
         # Calculate intersection points in AU
         intersection_xyz = (
@@ -277,19 +287,80 @@ class ShadowHeightCalculator:
         return heights
 
 
+# Minimum valid JD: roughly MJD 40000 (around 1968) to avoid ERFA warnings
+# about "dubious year" for dates before UTC was well-defined
+MIN_VALID_JD = 2440000.5  # MJD 40000
+
+
+def compute_shadow_heights_chunk(ra, dec, jd, obs_name, unit="km", jd_precision=0.01):
+    """
+    Compute shadow heights for a chunk of observations at a single observatory.
+
+    This function is designed to be called by a ProcessPoolExecutor.
+
+    Parameters
+    ----------
+    ra : np.ndarray
+        Right ascension in degrees.
+    dec : np.ndarray
+        Declination in degrees.
+    jd : np.ndarray
+        Julian Dates (TT scale).
+    obs_name : str
+        Observatory identifier ('apo' or 'lco').
+    unit : str, optional
+        Output unit for heights (default: 'km').
+    jd_precision : float, optional
+        Precision for grouping JDs (default: 0.01 days ~ 15 min).
+
+    Returns
+    -------
+    np.ndarray
+        Shadow heights in the specified unit.
+    """
+    ra = np.atleast_1d(ra).astype(float)
+    dec = np.atleast_1d(dec).astype(float)
+    jd = np.atleast_1d(jd).astype(float)
+
+    n = len(ra)
+    heights = np.full(n, np.nan)
+
+    calc = ShadowHeightCalculator(obs_name)
+
+    # Round JDs to group similar times (reduces ephemeris calculations)
+    jd_rounded = np.round(jd / jd_precision) * jd_precision
+    unique_jds = np.unique(jd_rounded)
+
+    for jd_val in unique_jds:
+        jd_mask = jd_rounded == jd_val
+        if not np.any(jd_mask):
+            continue
+
+        heights[jd_mask] = calc.compute(
+            ra[jd_mask],
+            dec[jd_mask],
+            jd_val,
+            unit=unit,
+        )
+
+    return heights
+
+
 def compute_shadow_heights(
     ra: np.ndarray,
     dec: np.ndarray,
     jd: np.ndarray,
     observatory: np.ndarray,
     unit: str = "km",
+    jd_precision: float = 0.01,
+    progress_callback: callable = None,
 ) -> np.ndarray:
     """
     Compute shadow heights for batched observations at multiple observatories.
 
     This is the main entry point for computing shadow heights for a batch of
     observations. It handles observations from different observatories and
-    at different times efficiently.
+    at different times efficiently by grouping observations with similar JDs.
 
     Parameters
     ----------
@@ -303,12 +374,17 @@ def compute_shadow_heights(
         Observatory identifiers ('apo' or 'lco') for each observation.
     unit : str, optional
         Output unit for heights (default: 'km').
+    jd_precision : float, optional
+        Precision for grouping JDs (default: 0.01 days ~ 15 min).
+        Observations within this range use the same ephemeris calculation.
+    progress_callback : callable, optional
+        Function to call after each batch with number of items processed.
 
     Returns
     -------
     np.ndarray
         Shadow heights in the specified unit. NaN for coordinates
-        that do not intersect the shadow cone.
+        that do not intersect the shadow cone or have invalid dates.
 
     Examples
     --------
@@ -344,8 +420,26 @@ def compute_shadow_heights(
     # Initialize output array
     heights = np.full(n, np.nan)
 
-    # Group by observatory and JD for efficient batch processing
-    unique_obs = np.unique(observatory)
+    # Create mask for valid coordinates and dates
+    # Filter out invalid JD values that would cause ERFA "dubious year" warnings
+    valid_data = (
+        np.isfinite(ra)
+        & np.isfinite(dec)
+        & np.isfinite(jd)
+        & (ra >= 0) & (ra <= 360)
+        & (dec >= -90) & (dec <= 90)
+        & (jd >= MIN_VALID_JD)
+    )
+
+    if not np.any(valid_data):
+        return heights
+
+    # Round JDs to group similar times (reduces ephemeris calculations)
+    jd_rounded = np.round(jd / jd_precision) * jd_precision
+
+    # Group by observatory and rounded JD for efficient batch processing
+    obs_lower = np.char.lower(np.char.strip(observatory.astype(str)))
+    unique_obs = np.unique(obs_lower[valid_data])
 
     for obs in unique_obs:
         obs_str = str(obs).lower().strip()
@@ -353,25 +447,29 @@ def compute_shadow_heights(
             continue
 
         calc = calculators[obs_str]
-        obs_mask = np.char.lower(np.char.strip(observatory.astype(str))) == obs_str
+        obs_mask = valid_data & (obs_lower == obs_str)
 
-        # Get unique JDs for this observatory
-        obs_jds = jd[obs_mask]
-        unique_jds = np.unique(obs_jds)
+        # Get unique rounded JDs for this observatory
+        obs_jds_rounded = jd_rounded[obs_mask]
+        unique_jds = np.unique(obs_jds_rounded)
 
         for jd_val in unique_jds:
-            # Get indices for this observatory + JD combination
-            jd_mask = obs_mask & (jd == jd_val)
+            # Get indices for this observatory + rounded JD combination
+            jd_mask = obs_mask & (jd_rounded == jd_val)
 
             if not np.any(jd_mask):
                 continue
 
-            # Compute heights for this batch
+            # Compute heights for this batch using the rounded JD for ephemeris
+            # but keep individual (ra, dec) for each observation
             heights[jd_mask] = calc.compute(
                 ra[jd_mask],
                 dec[jd_mask],
                 jd_val,
                 unit=unit,
             )
+
+            if progress_callback:
+                progress_callback(np.sum(jd_mask))
 
     return heights
