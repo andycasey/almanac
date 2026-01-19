@@ -1,3 +1,4 @@
+import numpy as np
 from typing import Literal
 from pydantic import BaseModel, Field, validator, model_validator, computed_field
 

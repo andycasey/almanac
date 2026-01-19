@@ -19,6 +19,9 @@ AR1D_KEYS = (
     "extraction_method",
     "mjd_mid_exposure",
     "ndiff_used",
+    "git_commit",
+    "git_branch",
+    "git_clean",
     "nread_total",
     "trace_found_match",
     "trace_orig_param_fname",
@@ -52,13 +55,13 @@ def load_ar1d_unical_meta(outdir: str, obs: str, mjd: int, expnum: int) -> dict:
 
     # Check existence first (cheaper than catching exception)
     if not os.path.exists(ar1dunical_path):
+        print(f"Could not find path {ar1dunical_path}")
         return {"flag_missing_ar1dunical": True}
 
     d = {"flag_missing_ar1dunical": False}
     with h5.File(ar1dunical_path, "r") as ar1d:
         meta = ar1d["metadata"]
         for key in AR1D_KEYS:
-            # [()] is faster than [...].flatten()[0] for scalar datasets
             d[key] = meta[key][()]
     return d
 

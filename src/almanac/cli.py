@@ -5,18 +5,31 @@ import click
 
 @click.group(invoke_without_command=True)
 @click.option("-v", "--verbosity", count=True, help="Verbosity level")
-@click.option("--mjd", default=None, type=int, help="Modified Julian date to query. Use negative values to indicate relative to current MJD")
+@click.option(
+    "--mjd",
+    default=None,
+    type=int,
+    help="Modified Julian date to query. Use negative values to indicate relative to current MJD",
+)
 @click.option("--mjd-start", default=None, type=int, help="Start of MJD range to query")
 @click.option("--mjd-end", default=None, type=int, help="End of MJD range to query")
 @click.option("--date", default=None, type=str, help="Date to query (e.g., 2024-01-15)")
-@click.option("--date-start", default=None, type=str, help="Start of date range to query")
+@click.option(
+    "--date-start", default=None, type=str, help="Start of date range to query"
+)
 @click.option("--date-end", default=None, type=str, help="End of date range to query")
 @click.option("--apo", is_flag=True, help="Query Apache Point Observatory data")
 @click.option("--lco", is_flag=True, help="Query Las Campanas Observatory data")
-@click.option("--fibers", "--fibres", is_flag=True, help="Include fibre mappings to targets")
-@click.option("--no-x-match", is_flag=True, help="Do not cross-match targets with SDSS-V database")
+@click.option(
+    "--fibers", "--fibres", is_flag=True, help="Include fibre mappings to targets"
+)
+@click.option(
+    "--no-x-match", is_flag=True, help="Do not cross-match targets with SDSS-V database"
+)
 @click.option("--output", "-O", default=None, type=str, help="Output file")
-@click.option("--processes", "-p", default=None, type=int, help="Number of processes to use")
+@click.option(
+    "--processes", "-p", default=None, type=int, help="Number of processes to use"
+)
 @click.pass_context
 def main(
     ctx,
@@ -51,7 +64,9 @@ def main(
     from contextlib import nullcontext
     from time import time, sleep
 
-    mjds, mjd_min, mjd_max = utils.parse_mjds(mjd, mjd_start, mjd_end, date, date_start, date_end)
+    mjds, mjd_min, mjd_max = utils.parse_mjds(
+        mjd, mjd_start, mjd_end, date, date_start, date_end
+    )
     observatories = utils.get_observatories(apo, lco)
 
     n_iterables = len(mjds) * len(observatories)
@@ -66,17 +81,16 @@ def main(
     refresh_per_second = 1
     context_manager = (
         Live(
-            display.create_display(),
-            refresh_per_second=refresh_per_second,
-            screen=True
+            display.create_display(), refresh_per_second=refresh_per_second, screen=True
         )
         if verbosity >= 1
         else nullcontext()
     )
     io_kwds = dict(fibers=fibers, compression=False)
-    with (h5.File(output, "a") if output else nullcontext()) as fp:
+    with h5.File(output, "a") if output else nullcontext() as fp:
         with context_manager as live:
             if processes is not None:
+
                 def initializer():
                     from sdssdb.peewee.sdss5db import database
 
@@ -89,6 +103,7 @@ def main(
                 import os
                 import signal
                 import concurrent.futures
+
                 if processes < 0:
                     processes = os.cpu_count()
                 with concurrent.futures.ProcessPoolExecutor(
@@ -115,13 +130,15 @@ def main(
 
                             future = next(concurrent.futures.as_completed(futures))
 
-                            observatory, mjd, exposures, sequences = result = future.result()
+                            observatory, mjd, exposures, sequences = result = (
+                                future.result()
+                            )
 
                             v = mjd - mjd_min + display.offset
                             missing = [e.image_type == "missing" for e in exposures]
                             if any(missing):
                                 display.missing.add(v)
-                                #buffered_critical_logs.extend(missing)
+                                # buffered_critical_logs.extend(missing)
 
                             if not exposures:
                                 display.no_data[observatory].add(v)
@@ -129,9 +146,19 @@ def main(
                                 display.completed[observatory].add(v)
                                 results.append(result)
                                 if output:
-                                    io.update(fp, observatory, mjd, exposures, sequences, **io_kwds)
+                                    io.update(
+                                        fp,
+                                        observatory,
+                                        mjd,
+                                        exposures,
+                                        sequences,
+                                        **io_kwds,
+                                    )
 
-                            if live is not None and (time() - t) > 1 / refresh_per_second:
+                            if (
+                                live is not None
+                                and (time() - t) > 1 / refresh_per_second
+                            ):
                                 live.update(display.create_display())
                                 t = time()
                             futures.remove(future)
@@ -151,7 +178,6 @@ def main(
                                     )
                                 )
 
-
                     except KeyboardInterrupt:
                         for pid in pool._processes:
                             os.kill(pid, signal.SIGKILL)
@@ -164,11 +190,13 @@ def main(
             else:
                 t = time()
                 for mjd, observatory in iterable:
-                    *_, exposures, sequences = result = apogee.get_almanac_data(observatory, mjd, fibers, not no_x_match)
+                    *_, exposures, sequences = result = apogee.get_almanac_data(
+                        observatory, mjd, fibers, not no_x_match
+                    )
                     v = mjd - mjd_min + display.offset
                     if any([e.image_type == "missing" for e in exposures]):
                         display.missing.add(v)
-                        #buffered_critical_logs.extend(missing)
+                        # buffered_critical_logs.extend(missing)
 
                     if not exposures:
                         display.no_data[observatory].add(v)
@@ -176,7 +204,9 @@ def main(
                         display.completed[observatory].add(v)
                         results.append(result)
                         if output:
-                            io.update(fp, observatory, mjd, exposures, sequences, **io_kwds)
+                            io.update(
+                                fp, observatory, mjd, exposures, sequences, **io_kwds
+                            )
 
                     if live is not None and (time() - t) > 1 / refresh_per_second:
                         live.update(display.create_display())
@@ -191,7 +221,7 @@ def main(
         for observatory, mjd, exposures, sequences in results:
             display_exposures(exposures, sequences)
 
-    # Show critical logs at the end to avoid disrupting the display
+        # Show critical logs at the end to avoid disrupting the display
         for item in buffered_critical_logs:
             logger.critical(item)
 
@@ -213,8 +243,15 @@ def lookup(identifiers, output, **kwargs):
     from almanac.database import database
     from almanac.apogee import get_exposures, get_almanac_data
     from sdssdb.peewee.sdss5db.targetdb import (
-        Assignment, AssignmentStatus,CartonToTarget, Target, Hole, Observatory,
-        Design, DesignToField, Field
+        Assignment,
+        AssignmentStatus,
+        CartonToTarget,
+        Target,
+        Hole,
+        Observatory,
+        Design,
+        DesignToField,
+        Field,
     )
     from sdssdb.peewee.sdss5db.catalogdb import SDSS_ID_flat
 
@@ -223,32 +260,39 @@ def lookup(identifiers, output, **kwargs):
     from rich.live import Live
 
     sq = (
-        SDSS_ID_flat
-        .select(SDSS_ID_flat.sdss_id)
+        SDSS_ID_flat.select(SDSS_ID_flat.sdss_id)
         .where(
             (SDSS_ID_flat.sdss_id.in_(identifiers))
-        |   (SDSS_ID_flat.catalogid.in_(identifiers))
+            | (SDSS_ID_flat.catalogid.in_(identifiers))
         )
         .alias("sq")
     )
     q = (
-        SDSS_ID_flat
-        .select(SDSS_ID_flat.catalogid, SDSS_ID_flat.sdss_id)
+        SDSS_ID_flat.select(SDSS_ID_flat.catalogid, SDSS_ID_flat.sdss_id)
         .distinct()
         .join(sq, on=(SDSS_ID_flat.sdss_id == sq.c.sdss_id))
         .order_by(SDSS_ID_flat.sdss_id.asc())
         .tuples()
     )
 
-    catalogids = { catalogid: sdss_id for catalogid, sdss_id in q }
+    catalogids = {catalogid: sdss_id for catalogid, sdss_id in q}
 
     if not catalogids:
-        raise click.ClickException(f"Identifiers {identifiers} not found in SDSS-V database")
+        raise click.ClickException(
+            f"Identifiers {identifiers} not found in SDSS-V database"
+        )
 
     # todo hacky
     for m in (
-        Target, Observatory, AssignmentStatus, Field, CartonToTarget,
-        Assignment, Hole, Design, DesignToField
+        Target,
+        Observatory,
+        AssignmentStatus,
+        Field,
+        CartonToTarget,
+        Assignment,
+        Hole,
+        Design,
+        DesignToField,
     ):
         try:
             m.get()
@@ -260,8 +304,7 @@ def lookup(identifiers, output, **kwargs):
         m._meta.schema = "targetdb"
 
     q = (
-        Target
-        .select(
+        Target.select(
             fn.Lower(Observatory.label),
             AssignmentStatus.mjd,
             Field.field_id,
@@ -279,7 +322,7 @@ def lookup(identifiers, output, **kwargs):
         .join(Field)
         .where(
             Target.catalogid.in_(tuple(catalogids.keys()))
-        &   (AssignmentStatus.status == 1)
+            & (AssignmentStatus.status == 1)
         )
         .tuples()
     )
@@ -296,15 +339,24 @@ def lookup(identifiers, output, **kwargs):
         title=f"Exposures\n({n} obs/mjd/field combinations)",
         title_style="bold blue",
         show_header=True,
-        header_style="bold cyan"
+        header_style="bold cyan",
     )
 
-    for field_name in ("#", "obs", "mjd", "exposure", "field", "fiber_id", "catalogid", "sdss_id"):
+    for field_name in (
+        "#",
+        "obs",
+        "mjd",
+        "exposure",
+        "field",
+        "fiber_id",
+        "catalogid",
+        "sdss_id",
+    ):
         rich_table.add_column(field_name, justify="center")
 
     done = set()
     io_kwds = dict(fibers=True, compression=False)
-    with (h5.File(output, "a") if output else nullcontext()) as fp:
+    with h5.File(output, "a") if output else nullcontext() as fp:
 
         i = 1
         with Live(rich_table, console=console, refresh_per_second=4) as live:
@@ -320,16 +372,23 @@ def lookup(identifiers, output, **kwargs):
                 if exposure.field_id in field_ids:
                     for target in exposure.targets:
                         if target.catalogid in catalogids:
-                            rich_table.add_row(*list(map(str, (
-                                i,
-                                exposure.observatory,
-                                exposure.mjd,
-                                exposure.exposure,
-                                exposure.field_id,
-                                target.fiber_id,
-                                target.catalogid,
-                                catalogids[target.catalogid],
-                            ))))
+                            rich_table.add_row(
+                                *list(
+                                    map(
+                                        str,
+                                        (
+                                            i,
+                                            exposure.observatory,
+                                            exposure.mjd,
+                                            exposure.exposure,
+                                            exposure.field_id,
+                                            target.fiber_id,
+                                            target.catalogid,
+                                            catalogids[target.catalogid],
+                                        ),
+                                    )
+                                )
+                            )
                             i += 1
                             break
     if output:
@@ -337,10 +396,12 @@ def lookup(identifiers, output, **kwargs):
         for obs, mjd in done:
             console.print(f"  - {obs}/{mjd}")
 
+
 @main.group()
 def add(**kwargs):
     """Add new information to an existing Almanac file."""
     pass
+
 
 def _get_sdss_ids(fp, obs, mjd):
     group = fp.get(f"{obs}/{mjd}/fibers", [])
@@ -349,18 +410,38 @@ def _get_sdss_ids(fp, obs, mjd):
         sdss_ids.update(group[config]["sdss_id"][:])
     return sdss_ids
 
+
 @add.command()
 @click.argument("input_path", type=str)
-@click.option("--mjd", default=None, type=int, help="Modified Julian date to query. Use negative values to indicate relative to current MJD")
+@click.option(
+    "--mjd",
+    default=None,
+    type=int,
+    help="Modified Julian date to query. Use negative values to indicate relative to current MJD",
+)
 @click.option("--mjd-start", default=None, type=int, help="Start of MJD range to query")
 @click.option("--mjd-end", default=None, type=int, help="End of MJD range to query")
 @click.option("--date", default=None, type=str, help="Date to query (e.g., 2024-01-15)")
-@click.option("--date-start", default=None, type=str, help="Start of date range to query")
+@click.option(
+    "--date-start", default=None, type=str, help="Start of date range to query"
+)
 @click.option("--date-end", default=None, type=str, help="End of date range to query")
 @click.option("--apo", is_flag=True, help="Query Apache Point Observatory data")
 @click.option("--lco", is_flag=True, help="Query Las Campanas Observatory data")
 @click.option("--p", default=-1, type=int, help="Number of workers to use")
-def metadata(input_path, mjd, mjd_start, mjd_end, date, date_start, date_end, apo, lco, p, **kwargs):
+def metadata(
+    input_path,
+    mjd,
+    mjd_start,
+    mjd_end,
+    date,
+    date_start,
+    date_end,
+    apo,
+    lco,
+    p,
+    **kwargs,
+):
     """Add astrometry and photometry to an existing Almanac file."""
 
     import os
@@ -391,15 +472,20 @@ def metadata(input_path, mjd, mjd_start, mjd_end, date, date_start, date_end, ap
                 executor.submit(_get_sdss_ids, fp, o, m)
                 for o, m in product(observatories, mjds)
             ]
-            for future in tqdm(concurrent.futures.as_completed(futures), desc="Collecting SDSS identifiers"):
+            for future in tqdm(
+                concurrent.futures.as_completed(futures),
+                desc="Collecting SDSS identifiers",
+            ):
                 sdss_ids.update(future.result())
 
     from almanac.data_models.source import Source
 
     results = query(sdss_ids)
     import pickle
+
     with open("20251128-meta.pkl", "wb") as fp:
         pickle.dump(results, fp)
+
 
 def _postprocess_chunk_worker(args):
     """
@@ -407,27 +493,65 @@ def _postprocess_chunk_worker(args):
 
     This must be at module level for multiprocessing to pickle it.
     """
+    import traceback
+    import warnings
+    import numpy as np
+
     task_type, chunk_indices, chunk_args = args
 
-    if task_type == "bary":
-        from almanac.postprocess import compute_barycentric_correction_chunk
-        result = compute_barycentric_correction_chunk(*chunk_args)
-        return (task_type, chunk_indices, result)
-    elif task_type == "obs_meta":
-        from almanac.postprocess import compute_observation_metadata_chunk
-        result = compute_observation_metadata_chunk(*chunk_args)
-        return (task_type, chunk_indices, result)
-    elif task_type == "shadow":
-        from almanac.postprocess import compute_shadow_heights_chunk
-        result = compute_shadow_heights_chunk(*chunk_args)
-        return (task_type, chunk_indices, result)
+    # Suppress IERS auto-download warnings about polar motion data
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message=".*IERS.*")
+        warnings.filterwarnings("ignore", message=".*polar motion.*")
+
+        try:
+            if task_type == "bary":
+                from almanac.postprocess import compute_barycentric_correction_chunk
+
+                result = compute_barycentric_correction_chunk(*chunk_args)
+                return (task_type, chunk_indices, result, None)
+            elif task_type == "obs_meta":
+                from almanac.postprocess import compute_observation_metadata_chunk
+
+                result = compute_observation_metadata_chunk(*chunk_args)
+                return (task_type, chunk_indices, result, None)
+            elif task_type == "shadow":
+                from almanac.postprocess import compute_shadow_heights_chunk
+
+                result = compute_shadow_heights_chunk(*chunk_args)
+                return (task_type, chunk_indices, result, None)
+            else:
+                return (task_type, chunk_indices, None, f"Unknown task type: {task_type}")
+        except Exception as e:
+            # Return NaN results on error so processing can continue
+            n = len(chunk_indices)
+            if task_type == "bary":
+                result = np.full(n, np.nan)
+            elif task_type == "obs_meta":
+                result = {
+                    "moon_phase": np.full(n, np.nan),
+                    "moon_separation": np.full(n, np.nan),
+                    "airmass": np.full(n, np.nan),
+                    "alt": np.full(n, np.nan),
+                    "az": np.full(n, np.nan),
+                }
+            elif task_type == "shadow":
+                result = np.full(n, np.nan)
+            else:
+                result = None
+            error_msg = f"{task_type}: {e}\n{traceback.format_exc()}"
+            return (task_type, chunk_indices, result, error_msg)
 
 
 @main.command()
 @click.argument("input_path", type=str)
 @click.argument("output_prefix", type=str)
-@click.option("--processes", "-p", default=None, type=int, help="Number of processes to use")
-@click.option("--limit", default=None, type=int, help="Limit number of spectra (for testing)")
+@click.option(
+    "--processes", "-p", default=None, type=int, help="Number of processes to use"
+)
+@click.option(
+    "--limit", default=None, type=int, help="Limit number of spectra (for testing)"
+)
 def postprocess(input_path, output_prefix, processes, limit, **kwargs):
     """Post-process an existing Almanac file after reductions are complete."""
 
@@ -435,25 +559,21 @@ def postprocess(input_path, output_prefix, processes, limit, **kwargs):
         return
 
     import os
+
     if not os.path.exists(input_path):
         raise FileNotFoundError(f"The file {input_path} does not exist.")
 
-    if processes is None or processes < 0:
-        processes = os.cpu_count()
-
-    outdir = os.path.dirname(os.path.abspath(input_path)) + "/../"
-
-    from glob import glob
     import h5py as h5
     import concurrent.futures
     import numpy as np
+    from glob import glob
     from collections import defaultdict
+    from pydantic_core import PydanticUndefined
 
     from almanac.display import TaskDisplay
     from almanac.data_models.source import Source
     from almanac.data_models.spectrum import Spectrum
     from almanac.io import get_hdf5_dtype, _write_models_to_hdf5_group
-    from pydantic_core import PydanticUndefined
     from almanac.postprocess import (
         finalize_radial_velocities,
         compute_targeting_flags,
@@ -465,22 +585,28 @@ def postprocess(input_path, output_prefix, processes, limit, **kwargs):
         group_indices_by_array,
     )
 
-    data_dict = {}
+    if processes is None or processes < 0:
+        processes = os.cpu_count()
 
-    # Get full list info
-    full_list_info_path = glob(f"{outdir}/arMADGICS/raw_*/full_list_info.h5")[0]
-    arMADGICS_suffix = full_list_info_path.split("/")[-2][4:]
-
-    arMADGICS_dir = f"{outdir}/arMADGICS/wu_th_{arMADGICS_suffix}/"
-    arMADGICS_paths = glob(f"{arMADGICS_dir}/arMADGICS_out_*.h5")
+    outdir = os.path.dirname(os.path.abspath(input_path)) + "/../"
     metadata_pickle_path = "/mnt/home/acasey/almanac/20251128-meta.pkl"
     output_spectra_path = f"{output_prefix}-spectra.h5"
     output_stars_path = f"{output_prefix}-stars.h5"
 
+    data_dict = {}
+
+    # Find other paths
+    full_list_info_path = glob(f"{outdir}/arMADGICS/raw_*/full_list_info.h5")[0]
+    arMADGICS_suffix = full_list_info_path.split("/")[-2][4:]
+    arMADGICS_dir = f"{outdir}/arMADGICS/wu_th_{arMADGICS_suffix}/"
+    arMADGICS_paths = glob(f"{arMADGICS_dir}/arMADGICS_out_*.h5")
+
     with TaskDisplay() as display:
 
         # Add all tasks upfront
-        display.add_task("io_parallel", "Loading data in parallel (almanac, arMADGICS, metadata)", total=4)
+        tid_io_parallel = display.add_task(
+            "Loading data in parallel (almanac, arMADGICS, metadata)", total=4
+        )
 
         # === PARALLEL I/O PHASE ===
         # Start background I/O tasks while ar1Dunical collection runs in ProcessPool
@@ -490,34 +616,42 @@ def postprocess(input_path, output_prefix, processes, limit, **kwargs):
             total = None
             with h5.File(full_list_info_path, "r") as full_list_info:
                 keys = list(full_list_info.keys())
-                display.add_task("summary", f"Reading {limit or len(full_list_info[keys[0]]):,} summary spectra", total=len(keys))
+                tid_summary = display.add_task(
+                    f"Reading {limit or len(full_list_info[keys[0]]):,} summary spectra",
+                    total=len(keys),
+                )
                 for key in keys:
                     data_dict[key] = full_list_info[key][:]
-                    display.advance("summary")
+                    display.advance(tid_summary)
 
             if limit is not None:
-                data_dict = { k: v[:limit] for k, v in data_dict.items() }
-                total = len(data_dict["sdss_id"])
-
+                data_dict = {k: v[:limit] for k, v in data_dict.items()}
                 data_dict["mjd"] = np.array(data_dict["mjd"], dtype=int)
 
                 almanac_future = io_executor.submit(
                     load_almanac_file,
                     input_path,
                     np.min(data_dict["mjd"]),
-                    np.max(data_dict["mjd"])
+                    np.max(data_dict["mjd"]),
                 )
             else:
                 almanac_future = io_executor.submit(load_almanac_file, input_path)
 
+            total = len(data_dict["sdss_id"])
+
             armadgics_future = io_executor.submit(load_armadgics_files, arMADGICS_paths)
-            metadata_future = io_executor.submit(load_metadata_pickle, metadata_pickle_path)
-            display.advance("io_parallel") # to trigger something to show
+            metadata_future = io_executor.submit(
+                load_metadata_pickle, metadata_pickle_path
+            )
+            display.advance(tid_io_parallel)  # to trigger something to show
 
-            star_fields = { **Source.model_fields, **Source.model_computed_fields }
-            spectrum_fields = { **Spectrum.model_fields, **Spectrum.model_computed_fields }
+            star_fields = {**Source.model_fields, **Source.model_computed_fields}
+            spectrum_fields = {
+                **Spectrum.model_fields,
+                **Spectrum.model_computed_fields,
+            }
 
-            display.add_task("fidgeting", "Fidgeting", total=6)
+            tid_fidgeting = display.add_task("Fidgeting", total=6)
 
             data_dict["carton_pks"] = [None] * total
 
@@ -525,7 +659,7 @@ def postprocess(input_path, output_prefix, processes, limit, **kwargs):
             data_dict["tele"] = np.array(data_dict["tele"], dtype=str)
             data_dict["mjd"] = np.array(data_dict["mjd"], dtype=int)
             data_dict["expnum"] = np.array(data_dict["expnum"], dtype=int)
-            display.advance("fidgeting")
+            display.advance(tid_fidgeting)
 
             # Get unique (tele, mjd, expnum) combinations using numpy
             tele_arr = data_dict["tele"]
@@ -533,72 +667,84 @@ def postprocess(input_path, output_prefix, processes, limit, **kwargs):
             expnum_arr = data_dict["expnum"]
 
             # Stack and find unique rows
-            stacked = np.column_stack([
-                np.char.encode(tele_arr.astype(str), 'utf-8'),
-                mjd_arr.astype('i8').view('S8'),
-                expnum_arr.astype('i8').view('S8'),
-            ])
-            display.advance("fidgeting")
+            stacked = np.column_stack(
+                [
+                    np.char.encode(tele_arr.astype(str), "utf-8"),
+                    mjd_arr.astype("i8").view("S8"),
+                    expnum_arr.astype("i8").view("S8"),
+                ]
+            )
+            display.advance(tid_fidgeting)
             _, unique_idx = np.unique(stacked, axis=0, return_index=True)
-            display.advance("fidgeting")
+            display.advance(tid_fidgeting)
 
             # Extract unique values
             unique_tele = tele_arr[unique_idx]
             unique_mjd = mjd_arr[unique_idx]
             unique_expnum = expnum_arr[unique_idx]
-            display.advance("fidgeting")
+            display.advance(tid_fidgeting)
 
             # Build lookups set and lookups_by_mjd dict
             lookups = set(zip(unique_tele, unique_mjd, unique_expnum))
             lookups_by_mjd = defaultdict(list)
             for t, m, e in zip(unique_tele, unique_mjd, unique_expnum):
                 lookups_by_mjd[m].append((t, e))
-            display.advance("fidgeting")
+            display.advance(tid_fidgeting)
 
             n_mjds = len(lookups_by_mjd)
             n_exposures = len(lookups)
-            display.add_task("reduce_1d", f"Collecting ar1Dunical data ({n_exposures:,} exposures)", total=n_exposures)
-            display.add_task("prop_1d", "Propagating ar1Dunical data", total=total)
-            display.add_task("reduce", "Processing fiber lookups", total=total)
-            display.add_task("metadata", "Assigning metadata to rows", total=5)
-            display.add_task("v_rad", "Computing radial velocities", total=1)  # Updated later
-            display.add_task("shadow_height", "Computing shadow heights", total=total)
-            display.add_task("obs_metadata", "Computing observation metadata (moon, airmass, alt/az)", total=1)  # Updated later
-            display.add_task("targeting", "Aggregating targeting cartons", total=total)
-            display.add_task(
-                "write_spectra",
-                f"Write spectra to {os.path.basename(output_spectra_path)}",
-                total=len(spectrum_fields)
+            tid_reduce_1d = display.add_task(
+                f"Collecting ar1Dunical data ({n_exposures:,} exposures)",
+                total=n_exposures + 1,
             )
-            display.add_task("star_unique", "Identifying unique stars", total=1)
-            display.add_task(
-                "write_stars",
+            tid_prop_1d = display.add_task("Propagating ar1Dunical data", total=total)
+            tid_fiber_lookups = display.add_task("Processing fiber lookups", total=total)
+            tid_metadata = display.add_task("Assigning metadata to rows", total=5)
+            tid_chunking = display.add_task("Chunking", total=total)
+            tid_vrad = display.add_task("Computing radial velocities", total=1)
+
+            tid_shadow_height = display.add_task("Computing shadow heights", total=total)
+            tid_obs_meta = display.add_task(
+                "Computing observation metadata (moon, airmass, alt/az)",
+                total=1,
+            )  # Updated later
+            tid_targeting = display.add_task("Aggregating targeting cartons", total=total)
+            tid_write_spectra = display.add_task(
+                f"Write spectra to {os.path.basename(output_spectra_path)}",
+                total=len(spectrum_fields),
+            )
+            tid_star_unique = display.add_task("Identifying unique stars", total=1)
+            tid_write_stars = display.add_task(
                 f"Write stars to {os.path.basename(output_stars_path)}",
-                total=len(star_fields)
+                total=len(star_fields),
             )
 
             batch_args = [
-                (outdir, mjd, obs_exps)
-                for mjd, obs_exps in lookups_by_mjd.items()
+                (outdir, mjd, obs_exps) for mjd, obs_exps in lookups_by_mjd.items()
             ]
-            display.advance("fidgeting")
+            display.advance(tid_fidgeting)
 
 
             # Meanwhile, run ar1Dunical collection (CPU-bound with ProcessPool)
+            display.advance(tid_reduce_1d) # to show progress while the pool maps
             ar1D_unical_meta = {}
-            with concurrent.futures.ProcessPoolExecutor(max_workers=processes) as executor:
-                for batch_result in executor.map(load_ar1d_unical_meta_batch, batch_args):
+            with concurrent.futures.ProcessPoolExecutor(
+                max_workers=processes
+            ) as executor:
+                for batch_result in executor.map(
+                    load_ar1d_unical_meta_batch, batch_args
+                ):
                     ar1D_unical_meta.update(batch_result)
-                    display.advance("reduce_1d", len(batch_result))
+                    display.advance(tid_reduce_1d, len(batch_result))
 
             # Collect parallel I/O results
             data_dict.update(armadgics_future.result())
-            display.advance("io_parallel")
+            display.advance(tid_io_parallel)
             source_meta = metadata_future.result()
-            display.advance("io_parallel")
+            display.advance(tid_io_parallel)
 
             if limit is not None:
-                data_dict = { k: v[:limit] for k, v in data_dict.items() }
+                data_dict = {k: v[:limit] for k, v in data_dict.items()}
 
             # Collect all metadata keys from source_meta (vectorized)
             sdss_ids_arr = np.asarray(data_dict["sdss_id"])
@@ -611,11 +757,11 @@ def postprocess(input_path, output_prefix, processes, limit, **kwargs):
             sdss_id_to_indices = group_indices_by_array(sdss_ids_arr)
 
             # Build lookup: key (field name or alias) -> field_info for Spectrum model
-            spectrum_field_lookup = {}
-            for field_name, field_info in Spectrum.model_fields.items():
-                spectrum_field_lookup[field_name] = field_info
-                if field_info.alias:
-                    spectrum_field_lookup[field_info.alias] = field_info
+            #spectrum_field_lookup = {}
+            #for field_name, field_info in Spectrum.model_fields.items():
+            #    spectrum_field_lookup[field_name] = field_info
+            #    if field_info.alias:
+            #        spectrum_field_lookup[field_info.alias] = field_info
 
             # Vectorized ar1D_unical_meta propagation using numpy
             tele_arr = np.array(data_dict["tele"], dtype=str)
@@ -627,28 +773,31 @@ def postprocess(input_path, output_prefix, processes, limit, **kwargs):
             ar1d_keys = list(ar1D_unical_meta[first_key].keys())
             for key in ar1d_keys:
                 sample_val = ar1D_unical_meta[first_key][key]
-                dtype = np.array(sample_val).dtype if not isinstance(sample_val, bool) else bool
+                dtype = (
+                    np.array(sample_val).dtype
+                    if not isinstance(sample_val, bool)
+                    else bool
+                )
                 data_dict[key] = np.empty(total, dtype=dtype)
 
             # Group rows by (tele, mjd, exp) for vectorized propagation (numpy)
             lookup_to_indices = group_indices_by_keys(tele_arr, mjd_arr, expnum_arr)
 
-            display.tasks["prop_1d"].total = len(lookup_to_indices)
+            display.tasks[tid_prop_1d].total = len(lookup_to_indices)
             for lookup_key, indices in lookup_to_indices.items():
-                meta = ar1D_unical_meta.get(lookup_key, {})
-                for k, v in meta.items():
+                for k, v in ar1D_unical_meta[lookup_key].items():
                     data_dict[k][indices] = v
-                display.advance("prop_1d")
-            #del ar1D_unical_meta, lookup_to_indices
+                display.advance(tid_prop_1d)
+            # del ar1D_unical_meta, lookup_to_indices
 
             # Vectorized almanac lookups using numpy advanced indexing
             adj_fiber_arr = np.asarray(data_dict["adjfiberindx"])
 
             # Group rows by (obs, mjd) for batch processing (numpy)
-            obs_mjd_to_indices = group_indices_by_keys(tele_arr, mjd_arr)
+            #obs_mjd_to_indices = group_indices_by_keys(tele_arr, mjd_arr)
 
             almanac_exposures, almanac_fibers, obs_mjd_keys = almanac_future.result()
-            display.advance("io_parallel")
+            display.advance(tid_io_parallel)
 
             # Collect all field names we'll encounter (for pre-allocation)
             all_exp_keys = set()
@@ -664,292 +813,345 @@ def postprocess(input_path, output_prefix, processes, limit, **kwargs):
                 if key not in data_dict:
                     sample = next(iter(almanac_exposures.values()))[key]
                     data_dict[key] = np.empty(total, dtype=sample.dtype)
+
             for key in all_fiber_keys:
                 if key not in data_dict:
                     for fiber_dict in almanac_fibers.values():
                         if fiber_dict:
-                            sample = next(iter(fiber_dict.values())).get(key)
+                            sample = next(iter(fiber_dict.values())).get(key, None)
                             if sample is not None:
                                 data_dict[key] = np.empty(total, dtype=sample.dtype)
                                 break
 
-        # Vectorized batch processing per (obs, mjd)
-        # Update total now that we know it (couldn't know until almanac was loaded)
-        display.tasks["reduce"].total = len(obs_mjd_to_indices)
-        for (obs, mjd), indices in obs_mjd_to_indices.items():
-            indices = np.array(indices)
-            exp_data = almanac_exposures.get((obs, mjd), {})
-            if not exp_data:
-                display.advance("reduce")
-                continue
+            # Vectorized batch processing per (obs, mjd)
+            # Update total now that we know it (couldn't know until almanac was loaded)
+            display.tasks[tid_fiber_lookups].total = len(lookup_to_indices)
+            for (obs, mjd, exposure), index in lookup_to_indices.items():
 
-            # Get exposure indices for these rows (expnum - 1)
-            exp_indices = expnum_arr[indices] - 1
+                exp_data = almanac_exposures[(obs, mjd)]
 
-            # Assign exposure data (vectorized)
-            for k, v in exp_data.items():
-                data_dict[k][indices] = v[exp_indices]
+                for k, v in exp_data.items():
+                    data_dict[k][index] = v[exposure - 1]
 
-            # Compute ref_id and fiber_index for all rows in this batch
-            config_ids = exp_data["config_id"][exp_indices]
-            plate_ids = exp_data["plate_id"][exp_indices]
-            ref_ids = np.maximum(config_ids, plate_ids).astype(int)
+                reference_id = max(
+                    exp_data["config_id"][exposure - 1],
+                    exp_data["plate_id"][exposure - 1]
+                )
 
-            fiber_indices = adj_fiber_arr[indices] - 1
-            fiber_indices = np.where(fiber_indices >= 300, fiber_indices - 300, fiber_indices)
+                fiber_dict = almanac_fibers[(obs, mjd)][reference_id]
+                fiber_index = adj_fiber_arr[index] - 1
+                if fiber_index >= 300:
+                    fiber_index -= 300
 
-            # Process fiber data per unique ref_id in this batch
-            fiber_dict = almanac_fibers[(obs, mjd)]
-            for ref_id in np.unique(ref_ids):
-                ref_mask = ref_ids == ref_id
-                ref_indices = indices[ref_mask]
-                ref_fiber_indices = fiber_indices[ref_mask]
+                for k, v in fiber_dict.items():
+                    data_dict[k][index] = v[fiber_index]
 
-                fiber_data = fiber_dict.get(int(ref_id), {})
-                for k, v in fiber_data.items():
-                    if k in data_dict:
-                        data_dict[k][ref_indices] = v[ref_fiber_indices]
+                display.advance(tid_fiber_lookups)
 
-            display.advance("reduce")
+            # Free memory
+            #del almanac_exposures, almanac_fibers, obs_mjd_to_indices, tele_arr, mjd_arr
 
-        # Free memory
-        #del almanac_exposures, almanac_fibers, obs_mjd_to_indices, tele_arr, mjd_arr
+            # Vectorized metadata assignment (source_meta already loaded in parallel)
+            # Build a mapping from sdss_id to row indices
+            translations = [
+                ("tele", "observatory"),
+                ("expnum", "exposure"),
+                ("starscale", "starscale0"),
+                ("RV_flag", "v_rad_flags"),
+                ("cartid", "cart_id"),
+                ("nSkyFibers", "n_sky_fibers"),
+                ("adjfiberindx", "adjusted_fiber_index"),
+            ]
+            for from_key, to_key in translations:
+                data_dict[to_key] = data_dict.pop(from_key)
+            display.advance(tid_metadata)
 
-        # Vectorized metadata assignment (source_meta already loaded in parallel)
-        # Build a mapping from sdss_id to row indices
-        translations = [
-            ("tele", "observatory"),
-            ("expnum", "exposure"),
-            ("starscale", "starscale0"),
-            ("RV_flag", "v_rad_flags"),
-            ("cartid", "cart_id"),
-            ("nSkyFibers", "n_sky_fibers"),
-            ("adjfiberindx", "adjusted_fiber_index"),
-        ]
-        for from_key, to_key in translations:
-            data_dict[to_key] = data_dict.pop(from_key)
-        display.advance("metadata")
+            for key, field_info in spectrum_fields.items():
+                if (
+                    key not in data_dict
+                and field_info.alias is not None
+                and field_info.alias in data_dict
+                ):
+                    data_dict[key] = data_dict.pop(field_info.alias)
 
-        # Pre-allocate arrays for metadata fields
-        for key in meta_keys:
-            if key not in data_dict:
-                # Skip keys not accepted by Spectrum model (as field or alias)
-                if key not in spectrum_field_lookup:
+            # keep this duplicate
+            data_dict["adjfiberindx"] = data_dict["adjusted_fiber_index"]
+            # Pre-allocate arrays for metadata fields
+            for key, field_info in spectrum_fields.items():
+                if key not in data_dict:
+                    # Skip keys not accepted by Spectrum model (as field or alias)
+
+                    hdf5_dtype = get_hdf5_dtype(field_info.annotation)
+
+                    # Get default from model, with fallback for required fields
+                    default = field_info.default
+                    if default is PydanticUndefined:
+                        if np.issubdtype(np.dtype(hdf5_dtype), np.floating):
+                            default = np.nan
+                        elif np.issubdtype(np.dtype(hdf5_dtype), np.integer):
+                            default = -1
+                        elif np.dtype(hdf5_dtype).char == "S":
+                            default = ""
+                        else:
+                            default = 0
+
+                    data_dict[key] = np.full(total, default, dtype=hdf5_dtype)
+            display.advance(tid_metadata)
+
+            # Vectorized metadata assignment using numpy inverse mapping
+            # Instead of looping over sdss_ids and then over keys, we:
+            # 1. Build an inverse mapping from row index to unique sdss_id index
+            # 2. For each metadata key, build an array indexed by unique sdss_id
+            # 3. Use fancy indexing to assign all rows at once
+
+            # Get inverse mapping: row_idx -> unique_sdss_id_idx
+            unique_sids, inverse_idx = np.unique(sdss_ids_arr, return_inverse=True)
+            n_unique = len(unique_sids)
+            display.advance(tid_metadata)
+
+            # Build metadata arrays indexed by unique sdss_id
+            # First pass: identify which keys we can vectorize
+            vectorizable_keys = [
+                k for k in meta_keys if k in data_dict and k != "carton_pks"
+            ]
+
+            for key in vectorizable_keys:
+                # Build array of values for unique sdss_ids
+                dtype = data_dict[key].dtype
+                # Get default value from existing array
+                default_val = data_dict[key][0] if len(data_dict[key]) > 0 else 0
+
+                meta_values = np.full(n_unique, default_val, dtype=dtype)
+                for i, sid in enumerate(unique_sids):
+                    meta = source_meta.get(sid, {})
+                    if meta and key in meta and meta[key] is not None:
+                        meta_values[i] = meta[key]
+
+                # Assign to all rows using inverse mapping
+                data_dict[key] = meta_values[inverse_idx]
+            display.advance(tid_metadata)
+
+            # Handle carton_pks separately (list assignment)
+            for sid, indices in sdss_id_to_indices.items():
+                meta = source_meta.get(sid, {})
+                if meta and "carton_pks" in meta and meta["carton_pks"] is not None:
+                    for index in indices:
+                        data_dict["carton_pks"][index] = meta["carton_pks"]
+
+            display.advance(tid_metadata)
+
+
+            # Compute targeting flags (fast, no parallelization needed)
+            carton_pks_list = data_dict.pop("carton_pks", [])
+            flags_array, n_unknown_carton_assignments = compute_targeting_flags(
+                carton_pks_list, total
+            )
+            data_dict["sdss5_target_flags"] = flags_array
+            display.advance(tid_targeting, total)
+
+            # Do an intermediate write.
+            def callback(name):
+                def inner(*args, **kwargs):
+                    try:
+                        display.advance(name)
+                    except:
+                        pass
+
+                return inner
+
+            '''
+            with h5.File(output_spectra_path, "w", track_order=True) as fp:
+                _write_models_to_hdf5_group(
+                    spectrum_fields, data_dict, fp, callback=callback(tid_write_spectra)
+                )
+            '''
+
+
+            # === PARALLEL COMPUTATION PHASE ===
+            # Use a single ProcessPoolExecutor for all parallel computations.
+            # This avoids the overhead of creating/destroying process pools multiple times.
+
+            # Pre-compute shared arrays used by multiple parallel tasks
+            ra, dec, mjd_mid_exposure = map(
+                np.array, (data_dict["ra"], data_dict["dec"], data_dict["mjd_mid_exposure"])
+            )
+            jd_mid_exposure = mjd_mid_exposure + 2400000.5
+            observatory_arr = np.array(data_dict["observatory"]).astype(str)
+            RV_pixoff_final = np.array(data_dict["RV_pixoff_final"])
+            RV_pix_var = np.array(data_dict["RV_pix_var"])
+
+            # Initialize output arrays
+            v_bary_corr = np.full(total, np.nan)
+            moon_phase = np.full(total, np.nan)
+            moon_separation = np.full(total, np.nan)
+            airmass = np.full(total, np.nan)
+            alt_arr = np.full(total, np.nan)
+            az_arr = np.full(total, np.nan)
+            shadow_height = np.full(total, np.nan)
+
+            # Create validity mask for coordinates
+            valid_mask = (
+                np.isfinite(ra)
+                & np.isfinite(dec)
+                & np.isfinite(mjd_mid_exposure)
+                & (ra >= 0)
+                & (ra <= 360)
+                & (dec >= -90)
+                & (dec <= 90)
+            )
+
+            # Build chunks for parallel processing
+            chunk_size = 5000
+            chunks = []  # List of (task_type, chunk_indices, args)
+            n_chunks = 0
+            chunk_indices = {}
+            for obs in ("apo", "lco"):
+                obs_mask = valid_mask & (observatory_arr == obs)
+                if not np.any(obs_mask):
                     continue
 
-                field_info = spectrum_field_lookup[key]
-                hdf5_dtype = get_hdf5_dtype(field_info.annotation)
+                obs_indices = np.where(obs_mask)[0]
+                chunk_indices[obs] = len(obs_indices)
 
-                # Get default from model, with fallback for required fields
-                default = field_info.default
-                if default is PydanticUndefined:
-                    if np.issubdtype(np.dtype(hdf5_dtype), np.floating):
-                        default = np.nan
-                    elif np.issubdtype(np.dtype(hdf5_dtype), np.integer):
-                        default = -1
-                    elif np.dtype(hdf5_dtype).char == 'S':
-                        default = ""
-                    else:
-                        default = 0
+            display.tasks[tid_chunking].total = sum(chunk_indices.values())
+            for obs in ("apo", "lco"):
+                obs_indices = chunk_indices.get(obs, None)
+                if obs_indices is None:
+                    continue
 
-                data_dict[key] = np.full(total, default, dtype=hdf5_dtype)
-        display.advance("metadata")
+                # Split into chunks
+                for chunk_start in range(0, len(obs_indices), chunk_size):
+                    chunk_end = min(chunk_start + chunk_size, len(obs_indices))
+                    chunk_indices = obs_indices[chunk_start:chunk_end]
 
-        # Vectorized metadata assignment using numpy inverse mapping
-        # Instead of looping over sdss_ids and then over keys, we:
-        # 1. Build an inverse mapping from row index to unique sdss_id index
-        # 2. For each metadata key, build an array indexed by unique sdss_id
-        # 3. Use fancy indexing to assign all rows at once
+                    # Barycentric correction chunk
+                    chunks.append(
+                        (
+                            "bary",
+                            chunk_indices,
+                            (
+                                ra[chunk_indices],
+                                dec[chunk_indices],
+                                mjd_mid_exposure[chunk_indices],
+                                obs,
+                            ),
+                        )
+                    )
 
-        # Get inverse mapping: row_idx -> unique_sdss_id_idx
-        unique_sids, inverse_idx = np.unique(sdss_ids_arr, return_inverse=True)
-        n_unique = len(unique_sids)
-        display.advance("metadata")
+                    # Observation metadata chunk (moon phase, separation, airmass, alt/az)
+                    chunks.append(
+                        (
+                            "obs_meta",
+                            chunk_indices,
+                            (
+                                ra[chunk_indices],
+                                dec[chunk_indices],
+                                mjd_mid_exposure[chunk_indices],
+                                obs,
+                            ),
+                        )
+                    )
 
-        # Build metadata arrays indexed by unique sdss_id
-        # First pass: identify which keys we can vectorize
-        vectorizable_keys = [k for k in meta_keys if k in data_dict and k != "carton_pks"]
+                    # Shadow height chunk (uses JD, not MJD)
+                    chunks.append(
+                        (
+                            "shadow",
+                            chunk_indices,
+                            (
+                                ra[chunk_indices],
+                                dec[chunk_indices],
+                                jd_mid_exposure[chunk_indices],
+                                obs,
+                            ),
+                        )
+                    )
+                    display.advance(tid_chunking, len(chunk_indices))
 
-        for key in vectorizable_keys:
-            # Build array of values for unique sdss_ids
-            dtype = data_dict[key].dtype
-            # Get default value from existing array
-            default_val = data_dict[key][0] if len(data_dict[key]) > 0 else 0
+            # Update task totals now that we know chunk count
+            n_chunks = len(chunks) // 3  # Each obs has 3 chunk types
+            display.tasks[tid_vrad].total = n_chunks
+            display.tasks[tid_obs_meta].total = n_chunks
+            display.tasks[tid_shadow_height].total = n_chunks
 
-            meta_values = np.full(n_unique, default_val, dtype=dtype)
-            for i, sid in enumerate(unique_sids):
-                meta = source_meta.get(sid, {})
-                if meta and key in meta and meta[key] is not None:
-                    meta_values[i] = meta[key]
+            # Process all chunks in parallel using module-level worker function
+            errors = []
+            with concurrent.futures.ProcessPoolExecutor(max_workers=processes) as executor:
+                futures = [executor.submit(_postprocess_chunk_worker, chunk) for chunk in chunks]
+                for future in concurrent.futures.as_completed(futures):
+                    try:
+                        task_type, chunk_indices, result, error = future.result()
+                        if error:
+                            errors.append(error)
+                        if task_type == "bary":
+                            v_bary_corr[chunk_indices] = result
+                            display.advance(tid_vrad)
+                        elif task_type == "obs_meta":
+                            moon_phase[chunk_indices] = result["moon_phase"]
+                            moon_separation[chunk_indices] = result["moon_separation"]
+                            airmass[chunk_indices] = result["airmass"]
+                            alt_arr[chunk_indices] = result["alt"]
+                            az_arr[chunk_indices] = result["az"]
+                            display.advance(tid_obs_meta)
+                        elif task_type == "shadow":
+                            shadow_height[chunk_indices] = result
+                            display.advance(tid_shadow_height)
+                    except Exception as e:
+                        errors.append(f"Future exception: {e}")
 
-            # Assign to all rows using inverse mapping
-            data_dict[key] = meta_values[inverse_idx]
-        display.advance("metadata")
+            if errors:
+                click.echo(f"Warning: {len(errors)} errors during parallel computation")
 
-        # Handle carton_pks separately (list assignment)
-        for sid, indices in sdss_id_to_indices.items():
-            meta = source_meta.get(sid, {})
-            if meta and "carton_pks" in meta and meta["carton_pks"] is not None:
-                for index in indices:
-                    data_dict["carton_pks"][index] = meta["carton_pks"]
+            # Finalize radial velocities (fast, no parallelization needed)
+            rv_result = finalize_radial_velocities(RV_pixoff_final, RV_pix_var, v_bary_corr)
+            data_dict.update(rv_result)
 
-        display.advance("metadata")
+            # Store observation metadata
+            data_dict["moon_phase"] = moon_phase
+            data_dict["moon_separation"] = moon_separation
+            data_dict["airmass"] = airmass
+            data_dict["alt"] = alt_arr
+            data_dict["az"] = az_arr
+            data_dict["shadow_height"] = shadow_height
 
-        # === PARALLEL COMPUTATION PHASE ===
-        # Use a single ProcessPoolExecutor for all parallel computations.
-        # This avoids the overhead of creating/destroying process pools multiple times.
+            def callback(name):
+                def inner(*args, **kwargs):
+                    try:
+                        display.advance(name)
+                    except:
+                        pass
 
-        # Pre-compute shared arrays used by multiple parallel tasks
-        ra, dec, mjd_mid_exposure = map(np.array, (
-            data_dict["ra"], data_dict["dec"], data_dict["mjd_mid_exposure"]
-        ))
-        jd_mid_exposure = mjd_mid_exposure + 2400000.5
-        observatory_arr = np.array(data_dict["observatory"]).astype(str)
-        RV_pixoff_final = np.array(data_dict["RV_pixoff_final"])
-        RV_pix_var = np.array(data_dict["RV_pix_var"])
-        carton_pks_list = data_dict.pop("carton_pks", [])
+                return inner
 
-        # Initialize output arrays
-        v_bary_corr = np.full(total, np.nan)
-        moon_phase = np.full(total, np.nan)
-        moon_separation = np.full(total, np.nan)
-        airmass = np.full(total, np.nan)
-        alt_arr = np.full(total, np.nan)
-        az_arr = np.full(total, np.nan)
-        shadow_height = np.full(total, np.nan)
+            with h5.File(output_spectra_path, "w", track_order=True) as fp:
+                _write_models_to_hdf5_group(
+                    spectrum_fields, data_dict, fp, callback=callback(tid_write_spectra)
+                )
 
-        # Create validity mask for coordinates
-        from almanac.postprocess import MIN_VALID_MJD
-        valid_mask = (
-            np.isfinite(ra)
-            & np.isfinite(dec)
-            & np.isfinite(mjd_mid_exposure)
-            & (ra >= 0) & (ra <= 360)
-            & (dec >= -90) & (dec <= 90)
-            & (mjd_mid_exposure >= MIN_VALID_MJD)
-        )
+            # Now write per source
+            display.tasks[tid_star_unique].total = len(data_dict)
+            _, indices = np.unique(data_dict["sdss_id"], return_index=True)
+            star_dict = {}
+            for k, v in data_dict.items():
+                star_dict[k] = v[indices]
+                display.advance(tid_star_unique)
 
-        # Build chunks for parallel processing
-        chunk_size = 5000
-        chunks = []  # List of (task_type, chunk_indices, args)
-
-        for obs in ("apo", "lco"):
-            obs_mask = valid_mask & (observatory_arr == obs)
-            if not np.any(obs_mask):
-                continue
-
-            obs_indices = np.where(obs_mask)[0]
-
-            # Split into chunks
-            for chunk_start in range(0, len(obs_indices), chunk_size):
-                chunk_end = min(chunk_start + chunk_size, len(obs_indices))
-                chunk_indices = obs_indices[chunk_start:chunk_end]
-
-                # Barycentric correction chunk
-                chunks.append((
-                    "bary",
-                    chunk_indices,
-                    (ra[chunk_indices], dec[chunk_indices], mjd_mid_exposure[chunk_indices], obs)
-                ))
-
-                # Observation metadata chunk (moon phase, separation, airmass, alt/az)
-                chunks.append((
-                    "obs_meta",
-                    chunk_indices,
-                    (ra[chunk_indices], dec[chunk_indices], mjd_mid_exposure[chunk_indices], obs)
-                ))
-
-                # Shadow height chunk (uses JD, not MJD)
-                chunks.append((
-                    "shadow",
-                    chunk_indices,
-                    (ra[chunk_indices], dec[chunk_indices], jd_mid_exposure[chunk_indices], obs)
-                ))
-
-        # Update task totals now that we know chunk count
-        n_chunks = len(chunks) // 3  # Each obs has 3 chunk types
-        display.tasks["v_rad"].total = n_chunks
-        display.tasks["obs_metadata"].total = n_chunks
-        display.tasks["shadow_height"].total = n_chunks
-
-        # Process all chunks in parallel using module-level worker function
-        with concurrent.futures.ProcessPoolExecutor(max_workers=processes) as executor:
-            for task_type, chunk_indices, result in executor.map(_postprocess_chunk_worker, chunks):
-                if task_type == "bary":
-                    v_bary_corr[chunk_indices] = result
-                    display.advance("v_rad")
-                elif task_type == "obs_meta":
-                    moon_phase[chunk_indices] = result["moon_phase"]
-                    moon_separation[chunk_indices] = result["moon_separation"]
-                    airmass[chunk_indices] = result["airmass"]
-                    alt_arr[chunk_indices] = result["alt"]
-                    az_arr[chunk_indices] = result["az"]
-                    display.advance("obs_metadata")
-                elif task_type == "shadow":
-                    shadow_height[chunk_indices] = result
-                    display.advance("shadow_height")
-
-        # Finalize radial velocities (fast, no parallelization needed)
-        rv_result = finalize_radial_velocities(RV_pixoff_final, RV_pix_var, v_bary_corr)
-        data_dict.update(rv_result)
-
-        # Store observation metadata
-        data_dict["moon_phase"] = moon_phase
-        data_dict["moon_separation"] = moon_separation
-        data_dict["airmass"] = airmass
-        data_dict["alt"] = alt_arr
-        data_dict["az"] = az_arr
-        data_dict["shadow_height"] = shadow_height
-
-        # Compute targeting flags (fast, no parallelization needed)
-        flags_array, n_unknown_carton_assignments = compute_targeting_flags(carton_pks_list, total)
-        data_dict["sdss5_target_flags"] = flags_array
-        display.advance("targeting", total)
-
-        def callback(name):
-            def inner(*args, **kwargs):
-                try:
-                    display.advance(name)
-                except:
-                    pass
-            return inner
-
-        with h5.File(output_spectra_path, "w", track_order=True) as fp:
-            _write_models_to_hdf5_group(
-                spectrum_fields,
-                data_dict,
-                fp,
-                callback=callback("write_spectra")
-            )
-
-        # Now write per source
-        display.tasks["star_unique"].total = len(data_dict)
-        _, indices = np.unique(data_dict["sdss_id"], return_index=True)
-        star_dict = {}
-        for k, v in data_dict.items():
-            star_dict[k] = v[indices]
-            display.advance("star_unique")
-
-        with h5.File(output_stars_path, "w", track_order=True) as fp:
-            _write_models_to_hdf5_group(
-                star_fields,
-                star_dict,
-                fp,
-                callback=callback("write_stars")
-            )
+            with h5.File(output_stars_path, "w", track_order=True) as fp:
+                _write_models_to_hdf5_group(
+                    star_fields, star_dict, fp, callback=callback(tid_write_stars)
+                )
 
     if n_unknown_carton_assignments > 0:
-        click.echo(f"Warning: {n_unknown_carton_assignments:,} unknown carton assignments encountered")
+        click.echo(
+            f"Warning: {n_unknown_carton_assignments:,} unknown carton assignments encountered"
+        )
 
     # Last check point for fields
     expected = set(spectrum_fields)
     actual = set(data_dict.keys())
-    for key in (actual - expected):
+    for key in actual - expected:
         click.echo(f"Warning: ignored field {key} in data_dict")
-    for key in (expected - actual):
+    for key in expected - actual:
         click.echo(f"Warning: missing field {key}")
-
-
 
 
 @main.group()
@@ -1023,6 +1225,7 @@ def update(key, value, **kwargs):
     click.echo(click.style("Deprecated: use `almanac config set`", fg="yellow"))
     return set(key, value, **kwargs)
 
+
 @config.command(name="set")
 @click.argument("key")
 @click.argument("value")
@@ -1084,6 +1287,7 @@ def dump(**kwargs):
     """Dump data to a summary file"""
     pass
 
+
 # almanac dump star[s] almanac.h5 output.fits
 def check_paths_and_format(input_path, output_path, given_format, overwrite):
     import os
@@ -1093,24 +1297,36 @@ def check_paths_and_format(input_path, output_path, given_format, overwrite):
         raise click.ClickException(f"Input path {input_path} does not exist")
 
     if os.path.exists(output_path) and not overwrite:
-        raise click.ClickException(f"Output path {output_path} already exists. Use --overwrite to overwrite.")
+        raise click.ClickException(
+            f"Output path {output_path} already exists. Use --overwrite to overwrite."
+        )
 
     if given_format is None:
         if output_path.lower().endswith(".fits"):
             return "fits"
         elif output_path.lower().endswith(".csv"):
             return "csv"
-        elif output_path.lower().endswith(".hdf5") or output_path.lower().endswith(".h5"):
+        elif output_path.lower().endswith(".hdf5") or output_path.lower().endswith(
+            ".h5"
+        ):
             return "hdf5"
         else:
-            raise click.ClickException("Cannot infer output format from output path. Please specify --format")
+            raise click.ClickException(
+                "Cannot infer output format from output path. Please specify --format"
+            )
     return given_format
 
 
 @dump.command()
 @click.argument("input_path", type=str)
 @click.argument("output_path", type=str)
-@click.option("--format", "-f", default=None, type=click.Choice(["fits", "csv", "hdf5"]), help="Output format")
+@click.option(
+    "--format",
+    "-f",
+    default=None,
+    type=click.Choice(["fits", "csv", "hdf5"]),
+    help="Output format",
+)
 @click.option("--overwrite", is_flag=True, help="Overwrite existing output file")
 def stars(input_path, output_path, overwrite, format, **kwargs):
     """Create a star-level summary file"""
@@ -1138,9 +1354,7 @@ def stars(input_path, output_path, overwrite, format, **kwargs):
             for mjd in fp[f"{observatory}"]:
                 group = fp[f"{observatory}/{mjd}"]
 
-                is_object = (
-                    (group["exposures/image_type"][:].astype(str) == "object")
-                )
+                is_object = group["exposures/image_type"][:].astype(str) == "object"
                 fps = is_object * (group["exposures/config_id"][:] > 0)
                 plate = is_object * (group["exposures/plate_id"][:] > 0)
 
@@ -1161,30 +1375,30 @@ def stars(input_path, output_path, overwrite, format, **kwargs):
                     try:
                         config_group = group[f"fibers/{config_id}"]
                     except KeyError:
-                        print(f"Warning couldnt get config {config_id} for {observatory} {mjd}")
+                        print(
+                            f"Warning couldnt get config {config_id} for {observatory} {mjd}"
+                        )
                         continue
 
                     ok = (
-                        (
-                            (config_group["catalogid"][:] > 0)
-                        |   (config_group["sdss_id"][:] > 0)
-                        |   (config_group["twomass_designation"][:].astype(str) != "")
-                        )
-                    *   (
-                            (config_group["category"][:].astype(str) == "science")
-                        |   (config_group["category"][:].astype(str) == "standard_apogee")
-                        |   (config_group["category"][:].astype(str) == "standard_boss")
-                        |   (config_group["category"][:].astype(str) == "open_fiber")
-                        )
+                        (config_group["catalogid"][:] > 0)
+                        | (config_group["sdss_id"][:] > 0)
+                        | (config_group["twomass_designation"][:].astype(str) != "")
+                    ) * (
+                        (config_group["category"][:].astype(str) == "science")
+                        | (config_group["category"][:].astype(str) == "standard_apogee")
+                        | (config_group["category"][:].astype(str) == "standard_boss")
+                        | (config_group["category"][:].astype(str) == "open_fiber")
                     )
                     sdss_ids = config_group["sdss_id"][:][ok]
                     catalogids = config_group["catalogid"][:][ok]
                     for sdss_id, catalogid in zip(sdss_ids, catalogids):
                         stars.setdefault(sdss_id, deepcopy(default))
-                        stars[sdss_id].setdefault("catalogid", catalogid) # this can change over time,... should we track that/
+                        stars[sdss_id].setdefault(
+                            "catalogid", catalogid
+                        )  # this can change over time,... should we track that/
                         n_exposures_on_this_mjd.setdefault(sdss_id, 0)
                         n_exposures_on_this_mjd[sdss_id] += n_exposures
-
 
                 for sdss_id, n_exposures in n_exposures_on_this_mjd.items():
                     stars[sdss_id]["n_exposures"] += n_exposures
@@ -1206,15 +1420,21 @@ def stars(input_path, output_path, overwrite, format, **kwargs):
             rows.append(dict(sdss_id=sdss_id, **meta))
 
     from astropy.table import Table
+
     t = Table(rows=rows)
     t.write(output_path, format=output_format, overwrite=overwrite)
-
 
 
 @dump.command()
 @click.argument("input_path", type=str)
 @click.argument("output_path", type=str)
-@click.option("--format", "-f", default=None, type=click.Choice(["fits", "csv", "hdf5"]), help="Output format")
+@click.option(
+    "--format",
+    "-f",
+    default=None,
+    type=click.Choice(["fits", "csv", "hdf5"]),
+    help="Output format",
+)
 @click.option("--overwrite", is_flag=True, help="Overwrite existing output file")
 def visits(input_path, output_path, format, overwrite, **kwargs):
     """Create a visit-level summary file"""
@@ -1222,11 +1442,16 @@ def visits(input_path, output_path, format, overwrite, **kwargs):
     pass
 
 
-
 @dump.command()
 @click.argument("input_path", type=str)
 @click.argument("output_path", type=str)
-@click.option("--format", "-f", default=None, type=click.Choice(["fits", "csv", "hdf5"]), help="Output format")
+@click.option(
+    "--format",
+    "-f",
+    default=None,
+    type=click.Choice(["fits", "csv", "hdf5"]),
+    help="Output format",
+)
 @click.option("--overwrite", is_flag=True, help="Overwrite existing output file")
 def exposures(input_path, output_path, format, overwrite, **kwargs):
     """Create an exposure-level summary file"""
@@ -1239,7 +1464,7 @@ def exposures(input_path, output_path, format, overwrite, **kwargs):
 
     from almanac.data_models import Exposure
 
-    fields = { **Exposure.model_fields, **Exposure.model_computed_fields }
+    fields = {**Exposure.model_fields, **Exposure.model_computed_fields}
     data = dict()
     for field_name, field_spec in fields.items():
         data[field_name] = []
@@ -1254,12 +1479,13 @@ def exposures(input_path, output_path, format, overwrite, **kwargs):
     if output_format == "hdf5":
         from almanac.io import _write_models_to_hdf5_group
 
-        fields = { **Exposure.model_fields, **Exposure.model_computed_fields }
+        fields = {**Exposure.model_fields, **Exposure.model_computed_fields}
 
         with h5.File(output_path, "w", track_order=True) as fp:
             _write_models_to_hdf5_group(fields, data, fp)
     else:
         from astropy.table import Table
+
         t = Table(data=data)
         t.write(output_path, format=output_format, overwrite=overwrite)
 
@@ -1267,7 +1493,13 @@ def exposures(input_path, output_path, format, overwrite, **kwargs):
 @dump.command()
 @click.argument("input_path", type=str)
 @click.argument("output_path", type=str)
-@click.option("--format", "-f", default=None, type=click.Choice(["fits", "csv", "hdf5"]), help="Output format")
+@click.option(
+    "--format",
+    "-f",
+    default=None,
+    type=click.Choice(["fits", "csv", "hdf5"]),
+    help="Output format",
+)
 @click.option("--overwrite", is_flag=True, help="Overwrite existing output file")
 def fibers(input_path, output_path, format, overwrite, **kwargs):
     """Create a fiber-level summary file"""
@@ -1281,10 +1513,16 @@ def fibers(input_path, output_path, format, overwrite, **kwargs):
     from almanac.data_models.fps import FPSTarget
     from almanac.data_models.plate import PlateTarget
 
-    fields = { **FPSTarget.model_fields, **FPSTarget.model_computed_fields,
-              **PlateTarget.model_fields, **PlateTarget.model_computed_fields }
+    fields = {
+        **FPSTarget.model_fields,
+        **FPSTarget.model_computed_fields,
+        **PlateTarget.model_fields,
+        **PlateTarget.model_computed_fields,
+    }
 
-    defaults = { name: spec.default for name, spec in fields.items() if hasattr(spec, "default") }
+    defaults = {
+        name: spec.default for name, spec in fields.items() if hasattr(spec, "default")
+    }
     defaults["twomass_designation"] = ""
 
     data = dict()
@@ -1312,6 +1550,7 @@ def fibers(input_path, output_path, format, overwrite, **kwargs):
             _write_models_to_hdf5_group(fields, data, fp)
     else:
         from astropy.table import Table
+
         t = Table(data=data)
         t.write(output_path, format=output_format, overwrite=overwrite)
 

@@ -450,16 +450,19 @@ class TaskDisplay:
         self.tasks: dict[str, Task] = {}
         self.console = Console()
         self._live = None
+        self.task_counter = 0
 
-    def add_task(self, task_id: str, name: str, total: int = 100) -> str:
+    def add_task(self, name: str, total: int = 100) -> str:
+        task_id = self.task_counter
+        self.task_counter += 1
         self.tasks[task_id] = Task(name=name, total=total)
         return task_id
 
-    def start_task(self, task_id: str):
+    def start_task(self, task_id: int):
         self.tasks[task_id].status = TaskStatus.RUNNING
         self._refresh()
 
-    def update_task(self, task_id: str, total: int = None, name: str = None):
+    def update_task(self, task_id: int, total: int = None, name: str = None):
         """Update task properties like total or name."""
         task = self.tasks[task_id]
         if total is not None:
@@ -469,7 +472,7 @@ class TaskDisplay:
         task.status = TaskStatus.RUNNING
         self._refresh()
 
-    def advance(self, task_id: str, amount: int = 1):
+    def advance(self, task_id: int, amount: int = 1):
         task = self.tasks[task_id]
         # Auto-start on first advance
         if task.status == TaskStatus.PENDING:
@@ -480,13 +483,13 @@ class TaskDisplay:
             task.status = TaskStatus.COMPLETED
         self._refresh()
 
-    def complete(self, task_id: str):
+    def complete(self, task_id: int):
         task = self.tasks[task_id]
         task.completed = task.total
         task.status = TaskStatus.COMPLETED
         self._refresh()
 
-    def fail(self, task_id: str):
+    def fail(self, task_id: int):
         self.tasks[task_id].status = TaskStatus.FAILED
         self._refresh()
 

@@ -26,7 +26,7 @@ class Source(BaseModel):
     skymapper_dr2: Int64 = Field(default=-1, description="SkyMapper DR2 object ID")
     supercosmos: Int64 = Field(default=-1, description="SuperCOSMOS object ID")
     tic_v8: Int64 = Field(default=-1, description="TESS Input Catalog v8 ID")
-    twomass_id: str = Field(default="", description="Input 2MASS ID to config file (use with caution)")
+    #twomass_id: str = Field(default="", description="Input 2MASS ID to config file (use with caution)")
     twomass_psc: Int64 = Field(default=-1, description="2MASS Point Source Catalog ID")
     tycho2: str = Field(default="", description="Tycho-2 catalog designation")
     unwise: str = Field(default="", description="unWISE object identifier")
