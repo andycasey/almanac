@@ -13,6 +13,20 @@ register_identifier("yanny", Table, is_yanny)
 register_reader("yanny", Table, read_table_yanny)
 register_writer("yanny", Table, write_table_yanny)
 
+def adjusted_fiber_index_to_fiber_id(adjusted_fiber_index):
+    """
+    Adjusted fiber index runs from 1 to 600 (inclusive) to account for APO and LCO.
+
+    Separate from whether it is APO or LCO, the fiber index runs in the opposite
+    direction as what we call `fiber_id`.
+    """
+    adjusted_fiber_index = np.atleast_1d(adjusted_fiber_index)
+    adjusted_fiber_index = np.where(
+        adjusted_fiber_index > 300,
+        adjusted_fiber_index - 300,
+        adjusted_fiber_index
+    )
+    return 301 - adjusted_fiber_index
 
 def group_contiguous(v):
     groups = []

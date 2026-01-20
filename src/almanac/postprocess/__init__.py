@@ -20,10 +20,10 @@ from almanac.postprocess.loaders import (
     load_ar1d_unical_meta,
     load_ar1d_unical_meta_batch,
     AR1D_KEYS,
+    load_metadata,
 )
 from almanac.postprocess.targeting import compute_targeting_flags
 from almanac.postprocess.utils import (
-    group_indices_by_keys,
     group_indices_by_array,
     unique_indices,
     vectorized_assign_by_group,

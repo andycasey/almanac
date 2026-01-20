@@ -262,11 +262,37 @@ def write_models_to_hdf5_group(
     )
 
 
+def get_default_array(field_spec, num_records: int):
+    if isinstance(field_spec, FieldInfo):
+        field_type = field_spec.annotation
+    else:
+        field_type = field_spec.return_type
+    # Get the HDF5 dtype
+    hdf5_dtype = get_hdf5_dtype(field_type)
+
+    # Get default from field_spec, with fallback for required fields
+    default = getattr(field_spec, 'default', PydanticUndefined)
+    if default is PydanticUndefined or default is None:
+        if np.issubdtype(np.dtype(hdf5_dtype), np.floating):
+            default = np.nan
+        elif np.issubdtype(np.dtype(hdf5_dtype), np.integer):
+            default = -1
+        elif np.dtype(hdf5_dtype).kind == 'S':
+            default = b""
+        elif np.dtype(hdf5_dtype) == np.bool_:
+            default = False
+        else:
+            default = 0
+
+    # Create array filled with default value
+    return np.full(num_records, default, dtype=hdf5_dtype)
+
+
 def _write_models_to_hdf5_group(
     fields,
     data,
     hdf5_group,
-    chunk_size: int = 1000,
+    chunk_size: int = None,
     compression: str = None,
     callback: Any = None,
     num_records: int = None,
@@ -331,15 +357,23 @@ def _write_models_to_hdf5_group(
 
         hdf5_dtype = get_hdf5_dtype(field_type, field_data)
 
-        if field_spec.annotation is np.ndarray:
-            chunks = (min(chunk_size, num_records),) if num_records > chunk_size else None
-            if field_data.ndim > 1 and chunks is not None:
-                chunks = (chunks[0], field_data.shape[1])
-            compression_setting = compression if num_records > chunk_size else None
+        chunks = (min(chunk_size, num_records),) if chunk_size is not None and num_records > chunk_size else None
+        if field_data.ndim > 1 and chunks is not None:
+            chunks = (chunks[0], field_data.shape[-1])
+        compression_setting = compression if chunk_size is not None and num_records > chunk_size else None
 
+        if field_spec.annotation is np.ndarray:
             dataset = hdf5_group.create_dataset(
                 field_name,
                 data=field_data,
+                chunks=chunks,
+                compression=compression_setting
+            )
+
+        elif isinstance(field_data, (np.ndarray, )):
+            dataset = hdf5_group.create_dataset(
+                field_name,
+                data=field_data.astype(np.dtype(hdf5_dtype)),
                 chunks=chunks,
                 compression=compression_setting
             )
@@ -364,11 +398,6 @@ def _write_models_to_hdf5_group(
             else:
                 # Create regular dataset
                 np_array = np.array(converted_data, dtype=hdf5_dtype)
-
-                chunks = (min(chunk_size, num_records),) if num_records > chunk_size else None
-                if np_array.ndim > 1 and chunks is not None:
-                    chunks = (chunks[0], np_array.shape[1])
-                compression_setting = compression if num_records > chunk_size else None
 
                 dataset = hdf5_group.create_dataset(
                     field_name,

@@ -9,7 +9,9 @@ and metadata pickle files.
 import os
 import pickle
 import h5py as h5
+import numpy as np
 from typing import Tuple, Dict, List, Any
+from sdss_semaphore.targeting import TargetingFlags
 
 
 # Keys to extract from ar1Dunical metadata
@@ -95,7 +97,7 @@ def load_almanac_file(
     input_path: str,
     mjd_min: int = None,
     mjd_max: int = None,
-) -> Tuple[Dict, Dict, List[Tuple[str, int]]]:
+) -> Tuple[Dict, Dict]:
     """
     Load all almanac exposure and fiber data into memory.
 
@@ -118,29 +120,26 @@ def load_almanac_file(
     """
     almanac_exposures = {}
     almanac_fibers = {}
-    obs_mjd_keys = []
-
+    from tqdm import tqdm
     with h5.File(input_path, "r") as fp:
-        all_keys = [(obs, int(mjd)) for obs in fp.keys() for mjd in fp[obs].keys()]
+        for obs in ("apo", "lco"):
+            for mjd in tqdm(fp[obs].keys()):
+                # Apply MJD filtering
+                if mjd_min is not None and int(mjd) < mjd_min:
+                    continue
+                if mjd_max is not None and int(mjd) > mjd_max:
+                    continue
 
-        for obs, mjd in all_keys:
-            # Apply MJD filtering
-            if mjd_min is not None and mjd < mjd_min:
-                continue
-            if mjd_max is not None and mjd > mjd_max:
-                continue
+                key = (obs, mjd)
 
-            key = (obs, mjd)
-            obs_mjd_keys.append(key)
+                g = fp[f"{obs}/{mjd}"]
+                almanac_exposures[key] = {k: v[:] for k, v in g["exposures"].items()}
+                almanac_fibers[key] = {
+                    int(cfg): {k: v[:] for k, v in g[f"fibers/{cfg}"].items()}
+                    for cfg in g.get("fibers", {}).keys()
+                }
 
-            g = fp[f"{obs}/{mjd}"]
-            almanac_exposures[key] = {k: v[:] for k, v in g["exposures"].items()}
-            almanac_fibers[key] = {
-                int(cfg): {k: v[:] for k, v in g[f"fibers/{cfg}"].items()}
-                for cfg in g.get("fibers", {}).keys()
-            }
-
-    return almanac_exposures, almanac_fibers, obs_mjd_keys
+    return (almanac_exposures, almanac_fibers)
 
 
 def load_armadgics_files(armadgics_paths: List[str]) -> dict:
@@ -184,3 +183,26 @@ def load_metadata_pickle(pickle_path: str) -> dict:
     """
     with open(pickle_path, "rb") as fp:
         return pickle.load(fp)
+
+
+
+def load_metadata(pickle_path, sdss_ids, t, meta_dict):
+
+    with open(pickle_path, "rb") as fp:
+        meta = pickle.load(fp)
+
+    flags = TargetingFlags(np.zeros((len(sdss_ids), 1)))
+
+    unknown_carton_pks = set()
+    for i, sdss_id in enumerate(sdss_ids):
+        for key, value in meta.get(sdss_id, {}).items():
+            if key == "carton_pks":
+                for carton_pk in (value or []):
+                    try:
+                        flags.set_bit_by_carton_pk(i, carton_pk)
+                    except KeyError:
+                        unknown_carton_pks.add(carton_pk)
+            elif value is not None:
+                meta_dict[t.get(key, key)][i] = value
+    meta_dict["sdss5_target_flags"] = flags
+    return (meta_dict, unknown_carton_pks)
