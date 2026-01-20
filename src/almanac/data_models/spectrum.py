@@ -11,9 +11,9 @@ class Spectrum(Source):
     """
 
     #> Exposure-level Information
-    observatory: Observatory = Field(description="Observatory name")
+    observatory: Observatory = Field(description="Observatory name", alias="tele")
     mjd: int = Field(description="MJD of the exposure")
-    exposure: int = Field(description="Exposure number", ge=1)
+    exposure: int = Field(description="Exposure number", ge=1, alias="expnum")
     prefix: Prefix = Field(description="Raw exposure basename prefix", default=None)
 
     #> Exposure Metadata
