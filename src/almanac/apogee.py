@@ -223,7 +223,12 @@ def organize_exposures(exposures: List[Exposure]) -> List[Exposure]:
     return organized
 
 
-def get_sequences(exposures: List[Exposure], image_type: ImageType, fields: Tuple[str, ...]) -> List[Tuple[int, int]]:
+def get_sequences(
+    exposures: List[Exposure],
+    image_type: ImageType,
+    fields: Tuple[str, ...],
+    ignore_interrupting_darks: bool = False
+) -> List[Tuple[int, int]]:
     """
     Get exposure number ranges for sequences of a specific image type.
 
@@ -233,13 +238,19 @@ def get_sequences(exposures: List[Exposure], image_type: ImageType, fields: Tupl
         The image type to search for (e.g., "Object", "ArcLamp").
     :param fields:
         Tuple of column names to group exposures by.
-    :param require_contiguous:
-        Whether to require exposure numbers to be contiguous within groups.
+    :param ignore_interrupting_darks: [optional]
+        Whether to allow (and ignore) dark exposures interrupting sequences.
 
     :returns:
         List of tuples containing (start_exposure, end_exposure) for each sequence.
     """
-    s = list(filter(lambda x: x.image_type == image_type, exposures))
+    if ignore_interrupting_darks:
+        f = lambda x: x.image_type in (image_type, "dark")
+    else:
+        f = lambda x: x.image_type == image_type
+
+    s = list(filter(f, exposures))
+
     sequence_exposure_numbers = []
     for v, group in groupby(s, key=lambda x: tuple(getattr(x, f) for f in fields)):
         for si, ei in utils.group_contiguous([e.exposure for e in group]):
@@ -258,7 +269,12 @@ def get_arclamp_sequences(exposures: List[Exposure]) -> List[Tuple[int, int]]:
     :returns:
         List of tuples containing (start_exposure, end_exposure) for each arc lamp sequence.
     """
-    return get_sequences(exposures, "arclamp", ("dithered_pixels", ))
+    return get_sequences(
+        exposures,
+        "arclamp",
+        ("dithered_pixels", ),
+        ignore_interrupting_darks=True
+    )
 
 
 def get_science_sequences(exposures: List[Exposure]) -> List[Tuple[int, int]]:
