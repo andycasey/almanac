@@ -805,7 +805,6 @@ def postprocess(input_path, output_prefix, processes, limit, **kwargs):
             tid_prop_1d = display.add_task(
                 "Processing ar1Dunical metadata", total=total
             )
-            tid_almanac = display.add_task("Processing almanac metadata", total=total)
             tid_fiber_lookups = display.add_task(
                 "Processing fiber-level information", total=total
             )
