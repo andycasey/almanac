@@ -163,14 +163,13 @@ class Spectrum(Source):
     snr: float = Field(description="Signal-to-noise ratio of the reduced spectrum", default=float('NaN'))
 
     #> ARMADGICS
-    adjusted_fiber_index: int = Field(description="Unique fiber identifier running 1 to 600 to handle fibers at both APO and LCO", default=0)
+    adjusted_fiber_index: int = Field(description="Unique fiber identifier running 1 to 600 to handle fibers at both APO and LCO", default=0, alias="adjfiberindx")
     linear_index: int = Field(description="Index used during batch processing", default=-1)
     RV_minchi2_final: float = Field(description="Value of the minimum on the delta chi2 surface for the stellar radial velocity determinination step in apMADGICS", default=float('NaN'))
     RV_pix_var: float = Field(description="Stellar radial velocity uncertainty expressed as a variance in the pixel offset [pixels]", default=float('NaN'))
     RV_pixoff_disc_final: float = Field(description="Discrete (grid point) pixel offset nearest stellar radial velocity optimum [pixels]", default=float('NaN'))
     RV_pixoff_final: float = Field(description="Pixel offset nearest stellar radial velocity optimum", default=float('NaN'))
     RVchi2_residuals: float = Field(description="Chi2 value for the residual component after the RV fitting step for the apMADGICS component separation", default=float('NaN'))
-    adjfiberindx: int = Field(description="Unique fiber identifier running 1 to 600 to handle fibers at both APO and LCO", default=0)
     avg_flux_conservation: float = Field(description="Median fractional flux conservation of MADGICS component separation across the visit spectrum", default=float('NaN'))
     data_pix_cnt: float = Field(description="Number of unmasked pixels in the input spectrum to apMADGICS component separation", default=float('NaN'))
     final_pix_cnt: float = Field(description="Final number of unmasked pixels used for modeling the visit spectrum", default=float('NaN'))

@@ -91,6 +91,10 @@ def create_apogee_id_lookup() -> Dict[str, int]:
     )
     APOGEE_ID_LOOKUP = {}
     for sdss_id, apogee_id in q.iterator():
+        if len(apogee_id.strip()) <= 2:
+            # There is one problematic entry of "AP" which caused 180,000
+            # fiber-exposures to be assigned to sdss_id 57991461
+            continue
         APOGEE_ID_LOOKUP[apogee_id] = sdss_id
         for prefix in ("2M", "J", "AP"):
             if apogee_id.startswith(prefix):

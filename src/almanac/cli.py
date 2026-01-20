@@ -843,27 +843,6 @@ def postprocess(input_path, output_prefix, processes, limit, **kwargs):
             if limit is not None:
                 data_dict = {k: v[:limit] for k, v in data_dict.items()}
 
-            """
-            flags = TargetingFlags(np.zeros((total, 1)))
-
-            # Collect all metadata keys from source_meta (vectorized)
-            # TODO: this can be done in parallel as soon as metadata is loaded
-            # TODO: ... in fact, just put this in a parallel worker for metadata
-            unknown_carton_pks = set()
-            for i, sdss_id in enumerate(data_dict["sdss_id"]):
-                for key, value in source_meta.get(sdss_id, {}).items():
-                    if key == "carton_pks":
-                        for carton_pk in (value or []):
-                            try:
-                                flags.set_bit_by_carton_pk(i, carton_pk)
-                            except KeyError:
-                                unknown_carton_pks.add(carton_pk)
-                    elif value is not None:
-                        data_dict[t.get(key, key)][i] = value
-                display.advance(tid_meta)
-            data_dict["sdss5_target_flags"] = flags
-            """
-
             # Assign ar1dunical meta
             n = len(lookups)
             display.tasks[tid_prop_1d].total = n
@@ -888,7 +867,7 @@ def postprocess(input_path, output_prefix, processes, limit, **kwargs):
                 )
 
                 fiber_ids = adjusted_fiber_index_to_fiber_id(
-                    data_dict["adjfiberindx"][indices]
+                    data_dict["adjusted_fiber_index"][indices]
                 )
 
                 for k, v in almanac_fibers[(obs, mjd)][reference_id].items():
@@ -1060,7 +1039,7 @@ def postprocess(input_path, output_prefix, processes, limit, **kwargs):
                     elif value is not None:
                         data_dict[t.get(key, key)][i] = value
                 display.advance(tid_meta)
-            data_dict["sdss5_target_flags"] = flags
+            data_dict["sdss5_target_flags"] = flags.array
 
             with h5.File(output_spectra_path, "w", track_order=True) as fp:
                 _write_models_to_hdf5_group(
