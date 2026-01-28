@@ -2,16 +2,13 @@
 Data loading utilities for postprocessing.
 
 This module provides functions for loading data from various sources
-including almanac HDF5 files, arMADGICS outputs, ar1Dunical files,
-and metadata pickle files.
+including almanac HDF5 files, arMADGICS outputs, and ar1Dunical files.
 """
 
 import os
-import pickle
 import h5py as h5
 import numpy as np
-from typing import Tuple, Dict, List, Any
-from sdss_semaphore.targeting import TargetingFlags
+from typing import Tuple, Dict, List
 
 
 # Keys to extract from ar1Dunical metadata
@@ -165,44 +162,3 @@ def load_armadgics_files(armadgics_paths: List[str]) -> dict:
             if fp[key].ndim == 1:
                 result[key] = fp[key][:]
     return result
-
-
-def load_metadata_pickle(pickle_path: str) -> dict:
-    """
-    Load metadata from pickle file.
-
-    Parameters
-    ----------
-    pickle_path : str
-        Path to the pickle file containing source metadata.
-
-    Returns
-    -------
-    dict
-        Dictionary mapping sdss_id to metadata dictionaries.
-    """
-    with open(pickle_path, "rb") as fp:
-        return pickle.load(fp)
-
-
-
-def load_metadata(pickle_path, sdss_ids, t, meta_dict):
-
-    with open(pickle_path, "rb") as fp:
-        meta = pickle.load(fp)
-
-    flags = TargetingFlags(np.zeros((len(sdss_ids), 1)))
-
-    unknown_carton_pks = set()
-    for i, sdss_id in enumerate(sdss_ids):
-        for key, value in meta.get(sdss_id, {}).items():
-            if key == "carton_pks":
-                for carton_pk in (value or []):
-                    try:
-                        flags.set_bit_by_carton_pk(i, carton_pk)
-                    except KeyError:
-                        unknown_carton_pks.add(carton_pk)
-            elif value is not None:
-                meta_dict[t.get(key, key)][i] = value
-    meta_dict["sdss5_target_flags"] = flags
-    return (meta_dict, unknown_carton_pks)
