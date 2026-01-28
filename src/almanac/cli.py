@@ -480,14 +480,37 @@ def metadata(
 
     from almanac.data_models.source import Source
     from almanac.io import write_models_to_hdf5_group, get_or_create_group, delete_hdf5_entry
+    from sdss_semaphore.targeting import TargetingFlags
+    import numpy as np
 
     results = query(sdss_ids)
 
+    # Compute sdss5_target_flags from carton_pks
+    # First pass: collect all sources and their carton_pks
+    sdss_id_list = list(results.keys())
+    carton_pks_list = []
+    for sdss_id in sdss_id_list:
+        carton_pks = results[sdss_id].pop("carton_pks", set())
+        carton_pks_list.append(list(carton_pks) if carton_pks else [])
+
+    # Initialize targeting flags array
+    flags = TargetingFlags(np.zeros((len(sdss_id_list), 1)))
+    
+    # Set bits for each source based on their carton_pks
+    unknown_carton_pks = set()
+    for i, carton_pks in enumerate(carton_pks_list):
+        for carton_pk in carton_pks:
+            try:
+                flags.set_bit_by_carton_pk(i, carton_pk)
+            except KeyError:
+                unknown_carton_pks.add(carton_pk)
+
     # Convert dict of dicts to list of Source models for HDF5 writing
     sources = []
-    for sdss_id, data in results.items():
-        # Remove carton_pks - it's not part of Source model and not stored in meta
-        data.pop("carton_pks", None)
+    for i, sdss_id in enumerate(sdss_id_list):
+        data = results[sdss_id]
+        # Add computed target flags
+        data["sdss5_target_flags"] = flags.array[i:i+1]
         sources.append(Source(**data))
 
     # Write to HDF5 meta group
