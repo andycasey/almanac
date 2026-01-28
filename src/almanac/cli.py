@@ -1269,9 +1269,9 @@ def stars(input_path, output_path, overwrite, format, **kwargs):
     output_format = check_paths_and_format(input_path, output_path, format, overwrite)
     assert format != "hdf5", "HDF5 output not yet supported for star summaries."
     with h5.File(input_path, "r") as fp:
-        for observatory in fp:
-            for mjd in fp[f"{observatory}"]:
-                group = fp[f"{observatory}/{mjd}"]
+        for observatory in fp["raw"]:
+            for mjd in fp[f"raw/{observatory}"]:
+                group = fp[f"raw/{observatory}/{mjd}"]
 
                 is_object = group["exposures/image_type"][:].astype(str) == "object"
                 fps = is_object * (group["exposures/config_id"][:] > 0)
@@ -1390,8 +1390,8 @@ def exposures(input_path, output_path, format, overwrite, **kwargs):
 
     with h5.File(input_path, "r") as fp:
         for observatory in ("apo", "lco"):
-            for mjd in fp[observatory].keys():
-                group = fp[f"{observatory}/{mjd}/exposures"]
+            for mjd in fp[f"raw/{observatory}"].keys():
+                group = fp[f"raw/{observatory}/{mjd}/exposures"]
                 for key in group.keys():
                     data[key].extend(group[key][:])
 
@@ -1450,10 +1450,10 @@ def fibers(input_path, output_path, format, overwrite, **kwargs):
 
     with h5.File(input_path, "r") as fp:
         for observatory in ("apo", "lco"):
-            for mjd in fp[observatory].keys():
-                group = fp[f"{observatory}/{mjd}/fibers"]
+            for mjd in fp[f"raw/{observatory}"].keys():
+                group = fp[f"raw/{observatory}/{mjd}/fibers"]
                 for config_id in group.keys():
-                    group = fp[f"{observatory}/{mjd}/fibers/{config_id}"]
+                    group = fp[f"raw/{observatory}/{mjd}/fibers/{config_id}"]
                     n = len(group["sdss_id"][:])
 
                     for field_name in data:
