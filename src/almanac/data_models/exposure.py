@@ -58,6 +58,9 @@ class Exposure(BaseModel):
     lamp_thar: int = Field(default=-1, alias="lampthar", ge=-1, le=1)
     lamp_une: int = Field(default=-1, alias="lampune", ge=-1, le=1)
 
+    #> File Metadata
+    file_size: int = Field(default=-1, description="File size in bytes")
+
     _targets: Optional[Tuple[Union[FPSTarget, PlateTarget]]] = None
 
     @computed_field(description="Exposure string used in path")
@@ -256,11 +259,13 @@ class Exposure(BaseModel):
             path = get_exposure_path(observatory, mjd, prefix, exposure, chip)
             if os.path.exists(path):
                 headers = get_headers(path)
+                file_size = os.path.getsize(path)
                 return cls(
                     observatory=observatory,
                     mjd=mjd,
                     exposure=exposure,
                     prefix=prefix,
+                    file_size=file_size,
                     **headers
                 )
         raise FileNotFoundError(f"No exposure files found for {observatory} {mjd} {exposure} {prefix}")
@@ -281,11 +286,13 @@ class Exposure(BaseModel):
         prefix, chip, cumulative_exposure = basename.split("-")
         exposure = int(cumulative_exposure.split(".")[0]) - mjd_to_exposure_prefix(mjd)
         headers = get_headers(path)
+        file_size = os.path.getsize(path)
         return cls(
             observatory=observatory,
             mjd=mjd,
             exposure=exposure,
             prefix=prefix,
+            file_size=file_size,
             **headers
         )
 
