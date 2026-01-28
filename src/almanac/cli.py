@@ -480,18 +480,14 @@ def metadata(
 
     from almanac.data_models.source import Source
     from almanac.io import write_models_to_hdf5_group, get_or_create_group, delete_hdf5_entry
-    import numpy as np
 
     results = query(sdss_ids)
 
     # Convert dict of dicts to list of Source models for HDF5 writing
-    # Store carton_pks separately as it's not part of Source model
     sources = []
-    all_carton_pks = []
     for sdss_id, data in results.items():
-        # Extract carton_pks before creating Source (it's not in the model)
-        carton_pks = data.pop("carton_pks", set())
-        all_carton_pks.append(list(carton_pks) if carton_pks else [])
+        # Remove carton_pks - it's not part of Source model and not stored in meta
+        data.pop("carton_pks", None)
         sources.append(Source(**data))
 
     # Write to HDF5 meta group
@@ -499,12 +495,6 @@ def metadata(
         delete_hdf5_entry(fp, "meta")
         meta_group = fp.create_group("meta", track_order=True)
         write_models_to_hdf5_group(sources, meta_group)
-        
-        # Write carton_pks as variable-length int64 arrays
-        dt = h5.special_dtype(vlen=np.int64)
-        carton_ds = meta_group.create_dataset("carton_pks", (len(all_carton_pks),), dtype=dt)
-        for i, pks in enumerate(all_carton_pks):
-            carton_ds[i] = np.array(pks, dtype=np.int64)
 
 
 def _postprocess_chunk_worker(args):
@@ -682,7 +672,6 @@ def postprocess(input_path, output_prefix, processes, limit, **kwargs):
         finalize_radial_velocities,
         load_ar1d_unical_meta_batch,
     )
-    from sdss_semaphore.targeting import TargetingFlags
 
     if processes is None or processes < 0:
         processes = os.cpu_count()
@@ -1048,9 +1037,6 @@ def postprocess(input_path, output_prefix, processes, limit, **kwargs):
                 # Load all meta fields into memory
                 meta_data = {key: meta_group[key][:] for key in meta_group.keys()}
 
-            flags = TargetingFlags(np.zeros((len(data_dict["sdss_id"]), 1)))
-
-            unknown_carton_pks = set()
             for i, sdss_id in enumerate(data_dict["sdss_id"]):
                 meta_idx = meta_lookup.get(sdss_id)
                 if meta_idx is None:
@@ -1061,21 +1047,13 @@ def postprocess(input_path, output_prefix, processes, limit, **kwargs):
                     if key == "sdss_id":
                         continue
                     value = values[meta_idx]
-                    if key == "carton_pks":
-                        # carton_pks is stored as variable-length array
-                        for carton_pk in value or []:
-                            try:
-                                flags.set_bit_by_carton_pk(i, carton_pk)
-                            except KeyError:
-                                unknown_carton_pks.add(carton_pk)
-                    elif value is not None:
+                    if value is not None:
                         # Handle bytes -> str conversion for string fields
                         if isinstance(value, bytes):
                             value = value.decode('utf-8') if value else None
                         if value is not None and value != b'':
                             data_dict[t.get(key, key)][i] = value
                 display.advance(tid_meta)
-            data_dict["sdss5_target_flags"] = flags.array
 
             with h5.File(output_spectra_path, "w", track_order=True) as fp:
                 _write_models_to_hdf5_group(
