@@ -86,12 +86,16 @@ class ConfigManager:
 
             fields = {f.name: f.type for f in cls.__dataclass_fields__.values()}
             kwargs = {}
-            for key, value in data.items():
+            for key, value in (data or {}).items():
+                # Skip keys that don't exist in the dataclass (removed fields)
+                if key not in fields:
+                    continue
                 field_type = fields.get(key)
                 if is_dataclass(field_type):
                     kwargs[key] = _load_recursive(field_type, value)
                 else:
                     kwargs[key] = value
+            # Missing keys will use their default values from the dataclass
             return cls(**kwargs)
 
         if data:
