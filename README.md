@@ -35,9 +35,10 @@ And it looks pretty, even when it warns you about missing exposures:
 
 ### At Utah
 
-If you want to use this at Utah, you can install it with:
+If you want to use this at Utah:
 
 ```bash
+module purge
 module load almanac
 ```
 
