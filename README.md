@@ -117,10 +117,10 @@ almanac --output /path/to/file.h5 # Append today's data to existing file
 An example structure of the HDF5 file is below:
 
 ```
-apo/59300/exposures        # a data table of exposures
-apo/59300/sequences        # a Nx2 array of exposure numbers (inclusive) that form a sequence
-apo/59300/fibers/fps/1     # a data table of fiber mappings for FPS configuration id 1
-apo/59300/fibers/plates/2  # a data table of fiber mappings for plate id 2
+raw/apo/59300/exposures        # a data table of exposures
+raw/apo/59300/sequences        # a Nx2 array of exposure numbers (inclusive) that form a sequence
+raw/apo/59300/fibers/fps/1     # a data table of fiber mappings for FPS configuration id 1
+raw/apo/59300/fibers/plates/2  # a data table of fiber mappings for plate id 2
 ```
 
 ## Configuration

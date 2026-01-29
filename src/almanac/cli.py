@@ -404,7 +404,7 @@ def add(**kwargs):
 
 
 def _get_sdss_ids(fp, obs, mjd):
-    group = fp.get(f"{obs}/{mjd}/fibers", [])
+    group = fp.get(f"raw/{obs}/{mjd}/fibers", [])
     sdss_ids = set()
     for config in group:
         sdss_ids.update(group[config]["sdss_id"][:])
@@ -464,7 +464,7 @@ def metadata(
         if mjds is None:
             mjds = []
             for obs in observatories:
-                mjds.extend(fp[obs])
+                mjds.extend(fp[f"raw/{obs}"])
             mjds = list(set(mjds))
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=p) as executor:
@@ -479,12 +479,45 @@ def metadata(
                 sdss_ids.update(future.result())
 
     from almanac.data_models.source import Source
+    from almanac.io import write_models_to_hdf5_group, get_or_create_group, delete_hdf5_entry
+    from sdss_semaphore.targeting import TargetingFlags
+    import numpy as np
 
     results = query(sdss_ids)
-    import pickle
 
-    with open("20251128-meta.pkl", "wb") as fp:
-        pickle.dump(results, fp)
+    # Compute sdss5_target_flags from carton_pks
+    # First pass: collect all sources and their carton_pks
+    sdss_id_list = list(results.keys())
+    carton_pks_list = []
+    for sdss_id in sdss_id_list:
+        carton_pks = results[sdss_id].pop("carton_pks", set())
+        carton_pks_list.append(list(carton_pks) if carton_pks else [])
+
+    # Initialize targeting flags array
+    flags = TargetingFlags(np.zeros((len(sdss_id_list), 1)))
+    
+    # Set bits for each source based on their carton_pks
+    unknown_carton_pks = set()
+    for i, carton_pks in enumerate(carton_pks_list):
+        for carton_pk in carton_pks:
+            try:
+                flags.set_bit_by_carton_pk(i, carton_pk)
+            except KeyError:
+                unknown_carton_pks.add(carton_pk)
+
+    # Convert dict of dicts to list of Source models for HDF5 writing
+    sources = []
+    for i, sdss_id in enumerate(sdss_id_list):
+        data = results[sdss_id]
+        # Add computed target flags
+        data["sdss5_target_flags"] = flags.array[i:i+1]
+        sources.append(Source(**data))
+
+    # Write to HDF5 meta group
+    with h5.File(input_path, "a") as fp:
+        delete_hdf5_entry(fp, "meta")
+        meta_group = fp.create_group("meta", track_order=True)
+        write_models_to_hdf5_group(sources, meta_group)
 
 
 def _postprocess_chunk_worker(args):
@@ -662,13 +695,11 @@ def postprocess(input_path, output_prefix, processes, limit, **kwargs):
         finalize_radial_velocities,
         load_ar1d_unical_meta_batch,
     )
-    from sdss_semaphore.targeting import TargetingFlags
 
     if processes is None or processes < 0:
         processes = os.cpu_count()
 
     outdir = os.path.dirname(os.path.abspath(input_path)) + "/../"
-    metadata_pickle_path = "/mnt/home/acasey/almanac/20251128-meta.pkl"
     output_spectra_path = f"{output_prefix}exposures.h5"
     output_stars_path = f"{output_prefix}stars.h5"
 
@@ -702,14 +733,14 @@ def postprocess(input_path, output_prefix, processes, limit, **kwargs):
             almanac_exposures = {}
             almanac_fibers = {}
             with h5.File(input_path, "r") as fp:
-                n = len(fp["apo"].keys()) + len(fp["lco"].keys())
+                n = len(fp["raw/apo"].keys()) + len(fp["raw/lco"].keys())
                 display.tasks[tid_almanac].total = n
                 for obs in ("apo", "lco"):
-                    for mjd in fp[obs].keys():
+                    for mjd in fp[f"raw/{obs}"].keys():
 
                         key = (obs, int(mjd))
 
-                        g = fp[f"{obs}/{mjd}"]
+                        g = fp[f"raw/{obs}/{mjd}"]
                         almanac_exposures[key] = {
                             k: v[:] for k, v in g["exposures"].items()
                         }
@@ -1019,27 +1050,33 @@ def postprocess(input_path, output_prefix, processes, limit, **kwargs):
 
                 return inner
 
-            # Metadata
-            import pickle
+            # Metadata - load from HDF5 meta group
+            with h5.File(input_path, "r") as fp:
+                meta_group = fp["meta"]
+                meta_sdss_ids = meta_group["sdss_id"][:]
+                # Create lookup from sdss_id to index in meta arrays
+                meta_lookup = {sid: idx for idx, sid in enumerate(meta_sdss_ids)}
+                
+                # Load all meta fields into memory
+                meta_data = {key: meta_group[key][:] for key in meta_group.keys()}
 
-            with open(metadata_pickle_path, "rb") as fp:
-                meta = pickle.load(fp)
-
-            flags = TargetingFlags(np.zeros((len(data_dict["sdss_id"]), 1)))
-
-            unknown_carton_pks = set()
             for i, sdss_id in enumerate(data_dict["sdss_id"]):
-                for key, value in meta.get(sdss_id, {}).items():
-                    if key == "carton_pks":
-                        for carton_pk in value or []:
-                            try:
-                                flags.set_bit_by_carton_pk(i, carton_pk)
-                            except KeyError:
-                                unknown_carton_pks.add(carton_pk)
-                    elif value is not None:
-                        data_dict[t.get(key, key)][i] = value
+                meta_idx = meta_lookup.get(sdss_id)
+                if meta_idx is None:
+                    display.advance(tid_meta)
+                    continue
+                    
+                for key, values in meta_data.items():
+                    if key == "sdss_id":
+                        continue
+                    value = values[meta_idx]
+                    if value is not None:
+                        # Handle bytes -> str conversion for string fields
+                        if isinstance(value, bytes):
+                            value = value.decode('utf-8') if value else None
+                        if value is not None and value != b'':
+                            data_dict[t.get(key, key)][i] = value
                 display.advance(tid_meta)
-            data_dict["sdss5_target_flags"] = flags.array
 
             with h5.File(output_spectra_path, "w", track_order=True) as fp:
                 _write_models_to_hdf5_group(
@@ -1269,9 +1306,9 @@ def stars(input_path, output_path, overwrite, format, **kwargs):
     output_format = check_paths_and_format(input_path, output_path, format, overwrite)
     assert format != "hdf5", "HDF5 output not yet supported for star summaries."
     with h5.File(input_path, "r") as fp:
-        for observatory in fp:
-            for mjd in fp[f"{observatory}"]:
-                group = fp[f"{observatory}/{mjd}"]
+        for observatory in fp["raw"]:
+            for mjd in fp[f"raw/{observatory}"]:
+                group = fp[f"raw/{observatory}/{mjd}"]
 
                 is_object = group["exposures/image_type"][:].astype(str) == "object"
                 fps = is_object * (group["exposures/config_id"][:] > 0)
@@ -1390,8 +1427,8 @@ def exposures(input_path, output_path, format, overwrite, **kwargs):
 
     with h5.File(input_path, "r") as fp:
         for observatory in ("apo", "lco"):
-            for mjd in fp[observatory].keys():
-                group = fp[f"{observatory}/{mjd}/exposures"]
+            for mjd in fp[f"raw/{observatory}"].keys():
+                group = fp[f"raw/{observatory}/{mjd}/exposures"]
                 for key in group.keys():
                     data[key].extend(group[key][:])
 
@@ -1450,10 +1487,10 @@ def fibers(input_path, output_path, format, overwrite, **kwargs):
 
     with h5.File(input_path, "r") as fp:
         for observatory in ("apo", "lco"):
-            for mjd in fp[observatory].keys():
-                group = fp[f"{observatory}/{mjd}/fibers"]
+            for mjd in fp[f"raw/{observatory}"].keys():
+                group = fp[f"raw/{observatory}/{mjd}/fibers"]
                 for config_id in group.keys():
-                    group = fp[f"{observatory}/{mjd}/fibers/{config_id}"]
+                    group = fp[f"raw/{observatory}/{mjd}/fibers/{config_id}"]
                     n = len(group["sdss_id"][:])
 
                     for field_name in data:
