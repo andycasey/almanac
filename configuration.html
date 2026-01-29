@@ -1,0 +1,693 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="./">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="index" title="Index" href="genindex.html"><link rel="search" title="Search" href="search.html"><link rel="next" title="Data Formats" href="data-formats.html"><link rel="prev" title="CLI Reference" href="cli-reference.html">
+
+    <!-- Generated with Sphinx 7.4.7 and Furo 2025.12.19 -->
+        <title>Configuration Guide - almanac 0.3.6 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=8dab3a3b" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="index.html"><div class="brand">almanac 0.3.6 documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
+  
+  <span class="sidebar-brand-text">almanac 0.3.6 documentation</span>
+  
+</a><form class="sidebar-search-container" method="get" action="search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="user-guide.html">User Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli-reference.html">CLI Reference</a></li>
+<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="data-formats.html">Data Formats</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">Frequently Asked Questions</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Developer Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api-reference.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="development.html">Development Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Documentation</span></p>
+<ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="api/modules.html">almanac</a><input aria-label="Toggle navigation of almanac" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/almanac.html">almanac package</a></li>
+</ul>
+</li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="view-this-page">
+  <a class="muted-link" href="https://github.com/andycasey/almanac/blob/main/docs/configuration.md?plain=true" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div><div class="edit-this-page">
+  <a class="muted-link" href="https://github.com/andycasey/almanac/edit/main/docs/configuration.md" rel="edit" title="Edit this page">
+    <svg><use href="#svg-pencil"></use></svg>
+    <span class="visually-hidden">Edit this page</span>
+  </a>
+</div><div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <section id="configuration-guide">
+<h1>Configuration Guide<a class="headerlink" href="#configuration-guide" title="Link to this heading">¶</a></h1>
+<p>This guide covers all configuration options available in <code class="docutils literal notranslate"><span class="pre">almanac</span></code>.</p>
+<section id="configuration-overview">
+<h2>Configuration Overview<a class="headerlink" href="#configuration-overview" title="Link to this heading">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">almanac</span></code> uses a hierarchical configuration system with:</p>
+<ul class="simple">
+<li><p><strong>Default values</strong> built into the code</p></li>
+<li><p><strong>Configuration file</strong> for persistent settings</p></li>
+<li><p><strong>Command-line options</strong> for one-time overrides</p></li>
+</ul>
+</section>
+<section id="configuration-file">
+<h2>Configuration File<a class="headerlink" href="#configuration-file" title="Link to this heading">¶</a></h2>
+<section id="location">
+<h3>Location<a class="headerlink" href="#location" title="Link to this heading">¶</a></h3>
+<p>The configuration file is automatically created at:</p>
+<ul class="simple">
+<li><p><strong>Linux/macOS</strong>: <code class="docutils literal notranslate"><span class="pre">~/.config/almanac/config.yaml</span></code></p></li>
+<li><p><strong>Windows</strong>: <code class="docutils literal notranslate"><span class="pre">%APPDATA%/almanac/config.yaml</span></code></p></li>
+</ul>
+</section>
+<section id="viewing-configuration">
+<h3>Viewing Configuration<a class="headerlink" href="#viewing-configuration" title="Link to this heading">¶</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Show all current settings and config file path</span>
+almanac<span class="w"> </span>config<span class="w"> </span>show
+
+<span class="c1"># Get a specific setting</span>
+almanac<span class="w"> </span>config<span class="w"> </span>get<span class="w"> </span>logging_level
+</pre></div>
+</div>
+</section>
+<section id="setting-values">
+<h3>Setting Values<a class="headerlink" href="#setting-values" title="Link to this heading">¶</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Set a configuration value</span>
+almanac<span class="w"> </span>config<span class="w"> </span><span class="nb">set</span><span class="w"> </span>logging_level<span class="w"> </span><span class="m">10</span>
+
+<span class="c1"># Set database connection parameters</span>
+almanac<span class="w"> </span>config<span class="w"> </span><span class="nb">set</span><span class="w"> </span>sdssdb.host<span class="w"> </span>your-database-host.org
+almanac<span class="w"> </span>config<span class="w"> </span><span class="nb">set</span><span class="w"> </span>sdssdb.port<span class="w"> </span><span class="m">5432</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="configuration-reference">
+<h2>Configuration Reference<a class="headerlink" href="#configuration-reference" title="Link to this heading">¶</a></h2>
+<section id="database-settings">
+<h3>Database Settings<a class="headerlink" href="#database-settings" title="Link to this heading">¶</a></h3>
+<section id="sdssdb-user">
+<h4><code class="docutils literal notranslate"><span class="pre">sdssdb.user</span></code><a class="headerlink" href="#sdssdb-user" title="Link to this heading">¶</a></h4>
+<ul class="simple">
+<li><p><strong>Type</strong>: String</p></li>
+<li><p><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;sdss_user&quot;</span></code></p></li>
+<li><p><strong>Description</strong>: Database username for SDSS database connection</p></li>
+</ul>
+</section>
+<section id="sdssdb-host">
+<h4><code class="docutils literal notranslate"><span class="pre">sdssdb.host</span></code><a class="headerlink" href="#sdssdb-host" title="Link to this heading">¶</a></h4>
+<ul class="simple">
+<li><p><strong>Type</strong>: String</p></li>
+<li><p><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;operations.sdss.org&quot;</span></code></p></li>
+<li><p><strong>Description</strong>: Database host address</p></li>
+</ul>
+</section>
+<section id="sdssdb-port">
+<h4><code class="docutils literal notranslate"><span class="pre">sdssdb.port</span></code><a class="headerlink" href="#sdssdb-port" title="Link to this heading">¶</a></h4>
+<ul class="simple">
+<li><p><strong>Type</strong>: Integer</p></li>
+<li><p><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">5432</span></code></p></li>
+<li><p><strong>Description</strong>: Database port number</p></li>
+</ul>
+</section>
+<section id="sdssdb-domain">
+<h4><code class="docutils literal notranslate"><span class="pre">sdssdb.domain</span></code><a class="headerlink" href="#sdssdb-domain" title="Link to this heading">¶</a></h4>
+<ul class="simple">
+<li><p><strong>Type</strong>: String</p></li>
+<li><p><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;operations.sdss.*&quot;</span></code></p></li>
+<li><p><strong>Description</strong>: Database domain pattern for connection</p></li>
+</ul>
+</section>
+</section>
+<section id="performance-settings">
+<h3>Performance Settings<a class="headerlink" href="#performance-settings" title="Link to this heading">¶</a></h3>
+<section id="database-connect-time-warning">
+<h4><code class="docutils literal notranslate"><span class="pre">database_connect_time_warning</span></code><a class="headerlink" href="#database-connect-time-warning" title="Link to this heading">¶</a></h4>
+<ul class="simple">
+<li><p><strong>Type</strong>: Integer</p></li>
+<li><p><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">3</span></code></p></li>
+<li><p><strong>Units</strong>: Seconds</p></li>
+<li><p><strong>Description</strong>: Time threshold for database connection warnings</p></li>
+</ul>
+</section>
+</section>
+<section id="data-processing-settings">
+<h3>Data Processing Settings<a class="headerlink" href="#data-processing-settings" title="Link to this heading">¶</a></h3>
+<section id="sdssdb-exposure-min-mjd-apo">
+<h4><code class="docutils literal notranslate"><span class="pre">sdssdb_exposure_min_mjd.apo</span></code><a class="headerlink" href="#sdssdb-exposure-min-mjd-apo" title="Link to this heading">¶</a></h4>
+<ul class="simple">
+<li><p><strong>Type</strong>: Integer</p></li>
+<li><p><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">59558</span></code></p></li>
+<li><p><strong>Description</strong>: Minimum MJD for Apache Point Observatory exposure queries</p></li>
+</ul>
+</section>
+<section id="sdssdb-exposure-min-mjd-lco">
+<h4><code class="docutils literal notranslate"><span class="pre">sdssdb_exposure_min_mjd.lco</span></code><a class="headerlink" href="#sdssdb-exposure-min-mjd-lco" title="Link to this heading">¶</a></h4>
+<ul class="simple">
+<li><p><strong>Type</strong>: Integer</p></li>
+<li><p><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">59558</span></code></p></li>
+<li><p><strong>Description</strong>: Minimum MJD for Las Campanas Observatory exposure queries</p></li>
+</ul>
+</section>
+</section>
+<section id="logging-settings">
+<h3>Logging Settings<a class="headerlink" href="#logging-settings" title="Link to this heading">¶</a></h3>
+<section id="logging-level">
+<h4><code class="docutils literal notranslate"><span class="pre">logging_level</span></code><a class="headerlink" href="#logging-level" title="Link to this heading">¶</a></h4>
+<ul class="simple">
+<li><p><strong>Type</strong>: Integer</p></li>
+<li><p><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">20</span></code> (INFO level)</p></li>
+<li><p><strong>Description</strong>: Python logging level</p></li>
+<li><p><strong>Values</strong>:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">10</span></code>: DEBUG (most verbose)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">20</span></code>: INFO (default)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">30</span></code>: WARNING</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">40</span></code>: ERROR</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">50</span></code>: CRITICAL (least verbose)</p></li>
+</ul>
+</li>
+</ul>
+</section>
+</section>
+</section>
+<section id="configuration-file-format">
+<h2>Configuration File Format<a class="headerlink" href="#configuration-file-format" title="Link to this heading">¶</a></h2>
+<p>The configuration file uses YAML format:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example almanac configuration</span>
+<span class="nt">database_connect_time_warning</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<span class="nt">logging_level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+
+<span class="nt">sdssdb</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">user</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sdss_user</span>
+<span class="w">  </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">operations.sdss.org</span>
+<span class="w">  </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5432</span>
+<span class="w">  </span><span class="nt">domain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">operations.sdss.*</span>
+
+<span class="nt">sdssdb_exposure_min_mjd</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">apo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">59558</span>
+<span class="w">  </span><span class="nt">lco</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">59558</span>
+</pre></div>
+</div>
+</section>
+<section id="environment-specific-configuration">
+<h2>Environment-Specific Configuration<a class="headerlink" href="#environment-specific-configuration" title="Link to this heading">¶</a></h2>
+<section id="utah-computing-environment">
+<h3>Utah Computing Environment<a class="headerlink" href="#utah-computing-environment" title="Link to this heading">¶</a></h3>
+<p>At Utah, the default configuration typically works without modification:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Verify default settings work</span>
+almanac<span class="w"> </span>config<span class="w"> </span>show
+almanac<span class="w"> </span>--mjd<span class="w"> </span>-1<span class="w">  </span><span class="c1"># Test query</span>
+</pre></div>
+</div>
+</section>
+<section id="external-installations">
+<h3>External Installations<a class="headerlink" href="#external-installations" title="Link to this heading">¶</a></h3>
+<p>For installations outside Utah, configure database access:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Set custom database host (if different)</span>
+almanac<span class="w"> </span>config<span class="w"> </span><span class="nb">set</span><span class="w"> </span>sdssdb.host<span class="w"> </span>your-database-host.edu
+
+<span class="c1"># Adjust connection timeout warning if needed</span>
+almanac<span class="w"> </span>config<span class="w"> </span><span class="nb">set</span><span class="w"> </span>database_connect_time_warning<span class="w"> </span><span class="m">10</span>
+</pre></div>
+</div>
+</section>
+<section id="development-environment">
+<h3>Development Environment<a class="headerlink" href="#development-environment" title="Link to this heading">¶</a></h3>
+<p>For development work, you might want more verbose logging:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Enable DEBUG-level logging</span>
+almanac<span class="w"> </span>config<span class="w"> </span><span class="nb">set</span><span class="w"> </span>logging_level<span class="w"> </span><span class="m">10</span>
+
+<span class="c1"># Reduce connection time warning for local development</span>
+almanac<span class="w"> </span>config<span class="w"> </span><span class="nb">set</span><span class="w"> </span>database_connect_time_warning<span class="w"> </span><span class="m">1</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="configuration-management">
+<h2>Configuration Management<a class="headerlink" href="#configuration-management" title="Link to this heading">¶</a></h2>
+<section id="backup-configuration">
+<h3>Backup Configuration<a class="headerlink" href="#backup-configuration" title="Link to this heading">¶</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Find config file location</span>
+almanac<span class="w"> </span>config<span class="w"> </span>show<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s2">&quot;Config file&quot;</span>
+
+<span class="c1"># Backup the file</span>
+cp<span class="w"> </span>~/.config/almanac/config.yaml<span class="w"> </span>~/almanac-config-backup.yaml
+</pre></div>
+</div>
+</section>
+<section id="reset-to-defaults">
+<h3>Reset to Defaults<a class="headerlink" href="#reset-to-defaults" title="Link to this heading">¶</a></h3>
+<p>To reset all settings to defaults, simply delete the configuration file:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>rm<span class="w"> </span>~/.config/almanac/config.yaml
+</pre></div>
+</div>
+<p>The file will be recreated with default values on the next run.</p>
+</section>
+<section id="multiple-configurations">
+<h3>Multiple Configurations<a class="headerlink" href="#multiple-configurations" title="Link to this heading">¶</a></h3>
+<p>For different environments, you can manage multiple config files:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Save current config</span>
+cp<span class="w"> </span>~/.config/almanac/config.yaml<span class="w"> </span>~/configs/almanac-utah.yaml
+
+<span class="c1"># Create test config</span>
+cp<span class="w"> </span>~/configs/almanac-test.yaml<span class="w"> </span>~/.config/almanac/config.yaml
+</pre></div>
+</div>
+</section>
+</section>
+<section id="command-line-overrides">
+<h2>Command-Line Overrides<a class="headerlink" href="#command-line-overrides" title="Link to this heading">¶</a></h2>
+<p>Many settings can be overridden on the command line:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Override verbosity (affects logging output)</span>
+almanac<span class="w"> </span>-vv<span class="w"> </span>--mjd<span class="w"> </span>-1
+
+<span class="c1"># Override parallel processing</span>
+almanac<span class="w"> </span>--processes<span class="w"> </span><span class="m">8</span><span class="w"> </span>--mjd-start<span class="w"> </span>-7
+</pre></div>
+</div>
+<p>Note that command-line overrides don’t modify the configuration file.</p>
+</section>
+<section id="troubleshooting-configuration">
+<h2>Troubleshooting Configuration<a class="headerlink" href="#troubleshooting-configuration" title="Link to this heading">¶</a></h2>
+<section id="common-issues">
+<h3>Common Issues<a class="headerlink" href="#common-issues" title="Link to this heading">¶</a></h3>
+<p><strong>Configuration Not Taking Effect</strong>:</p>
+<ul class="simple">
+<li><p>Check configuration file path with <code class="docutils literal notranslate"><span class="pre">almanac</span> <span class="pre">config</span> <span class="pre">show</span></code></p></li>
+<li><p>Verify YAML syntax is correct</p></li>
+<li><p>Ensure proper data types (numbers vs. strings)</p></li>
+</ul>
+<p><strong>Database Connection Issues</strong>:</p>
+<ul class="simple">
+<li><p>Verify <code class="docutils literal notranslate"><span class="pre">sdssdb.host</span></code> and <code class="docutils literal notranslate"><span class="pre">sdssdb.port</span></code> settings</p></li>
+<li><p>Check network connectivity</p></li>
+<li><p>Confirm IP address is whitelisted for database access</p></li>
+</ul>
+<p><strong>Permission Errors</strong>:</p>
+<ul class="simple">
+<li><p>Check write permissions for config directory</p></li>
+<li><p>Verify file ownership</p></li>
+</ul>
+</section>
+<section id="validation">
+<h3>Validation<a class="headerlink" href="#validation" title="Link to this heading">¶</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Test configuration with a simple query</span>
+almanac<span class="w"> </span>config<span class="w"> </span>show
+almanac<span class="w"> </span>--mjd<span class="w"> </span>-1<span class="w"> </span>-v
+
+<span class="c1"># Test database connectivity</span>
+almanac<span class="w"> </span>config<span class="w"> </span>get<span class="w"> </span>sdssdb.host
+</pre></div>
+</div>
+</section>
+</section>
+<section id="advanced-configuration">
+<h2>Advanced Configuration<a class="headerlink" href="#advanced-configuration" title="Link to this heading">¶</a></h2>
+<section id="custom-logging">
+<h3>Custom Logging<a class="headerlink" href="#custom-logging" title="Link to this heading">¶</a></h3>
+<p>For more advanced logging configuration, you can modify the logging level:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Very verbose (DEBUG level)</span>
+almanac<span class="w"> </span>config<span class="w"> </span><span class="nb">set</span><span class="w"> </span>logging_level<span class="w"> </span><span class="m">10</span>
+
+<span class="c1"># Quiet (WARNING level only)</span>
+almanac<span class="w"> </span>config<span class="w"> </span><span class="nb">set</span><span class="w"> </span>logging_level<span class="w"> </span><span class="m">30</span>
+</pre></div>
+</div>
+</section>
+<section id="performance-tuning">
+<h3>Performance Tuning<a class="headerlink" href="#performance-tuning" title="Link to this heading">¶</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Adjust database timeout warning for slower connections</span>
+almanac<span class="w"> </span>config<span class="w"> </span><span class="nb">set</span><span class="w"> </span>database_connect_time_warning<span class="w"> </span><span class="m">30</span>
+
+<span class="c1"># Set historical data limits if needed</span>
+almanac<span class="w"> </span>config<span class="w"> </span><span class="nb">set</span><span class="w"> </span>sdssdb_exposure_min_mjd.apo<span class="w"> </span><span class="m">60000</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="configuration-schema">
+<h2>Configuration Schema<a class="headerlink" href="#configuration-schema" title="Link to this heading">¶</a></h2>
+<p>The configuration follows this schema structure:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">Config</span><span class="p">:</span>
+  <span class="n">sdssdb</span><span class="p">:</span> <span class="n">DatabaseConfig</span>
+    <span class="n">user</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">host</span><span class="p">:</span> <span class="nb">str</span>  
+    <span class="n">port</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">domain</span><span class="p">:</span> <span class="nb">str</span>
+  <span class="n">database_connect_time_warning</span><span class="p">:</span> <span class="nb">int</span>
+  <span class="n">sdssdb_exposure_min_mjd</span><span class="p">:</span> <span class="n">ObservatoryMJD</span>
+    <span class="n">apo</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">lco</span><span class="p">:</span> <span class="nb">int</span>  
+  <span class="n">logging_level</span><span class="p">:</span> <span class="nb">int</span>
+</pre></div>
+</div>
+<p>All settings are optional and will fall back to defaults if not specified.</p>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="data-formats.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Data Formats</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="cli-reference.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">CLI Reference</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2024, Andy Casey
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Configuration Guide</a><ul>
+<li><a class="reference internal" href="#configuration-overview">Configuration Overview</a></li>
+<li><a class="reference internal" href="#configuration-file">Configuration File</a><ul>
+<li><a class="reference internal" href="#location">Location</a></li>
+<li><a class="reference internal" href="#viewing-configuration">Viewing Configuration</a></li>
+<li><a class="reference internal" href="#setting-values">Setting Values</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#configuration-reference">Configuration Reference</a><ul>
+<li><a class="reference internal" href="#database-settings">Database Settings</a><ul>
+<li><a class="reference internal" href="#sdssdb-user"><code class="docutils literal notranslate"><span class="pre">sdssdb.user</span></code></a></li>
+<li><a class="reference internal" href="#sdssdb-host"><code class="docutils literal notranslate"><span class="pre">sdssdb.host</span></code></a></li>
+<li><a class="reference internal" href="#sdssdb-port"><code class="docutils literal notranslate"><span class="pre">sdssdb.port</span></code></a></li>
+<li><a class="reference internal" href="#sdssdb-domain"><code class="docutils literal notranslate"><span class="pre">sdssdb.domain</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#performance-settings">Performance Settings</a><ul>
+<li><a class="reference internal" href="#database-connect-time-warning"><code class="docutils literal notranslate"><span class="pre">database_connect_time_warning</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#data-processing-settings">Data Processing Settings</a><ul>
+<li><a class="reference internal" href="#sdssdb-exposure-min-mjd-apo"><code class="docutils literal notranslate"><span class="pre">sdssdb_exposure_min_mjd.apo</span></code></a></li>
+<li><a class="reference internal" href="#sdssdb-exposure-min-mjd-lco"><code class="docutils literal notranslate"><span class="pre">sdssdb_exposure_min_mjd.lco</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#logging-settings">Logging Settings</a><ul>
+<li><a class="reference internal" href="#logging-level"><code class="docutils literal notranslate"><span class="pre">logging_level</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a class="reference internal" href="#configuration-file-format">Configuration File Format</a></li>
+<li><a class="reference internal" href="#environment-specific-configuration">Environment-Specific Configuration</a><ul>
+<li><a class="reference internal" href="#utah-computing-environment">Utah Computing Environment</a></li>
+<li><a class="reference internal" href="#external-installations">External Installations</a></li>
+<li><a class="reference internal" href="#development-environment">Development Environment</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#configuration-management">Configuration Management</a><ul>
+<li><a class="reference internal" href="#backup-configuration">Backup Configuration</a></li>
+<li><a class="reference internal" href="#reset-to-defaults">Reset to Defaults</a></li>
+<li><a class="reference internal" href="#multiple-configurations">Multiple Configurations</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#command-line-overrides">Command-Line Overrides</a></li>
+<li><a class="reference internal" href="#troubleshooting-configuration">Troubleshooting Configuration</a><ul>
+<li><a class="reference internal" href="#common-issues">Common Issues</a></li>
+<li><a class="reference internal" href="#validation">Validation</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#advanced-configuration">Advanced Configuration</a><ul>
+<li><a class="reference internal" href="#custom-logging">Custom Logging</a></li>
+<li><a class="reference internal" href="#performance-tuning">Performance Tuning</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#configuration-schema">Configuration Schema</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script src="_static/documentation_options.js?v=8da8c241"></script>
+    <script src="_static/doctools.js?v=9a2dae69"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/scripts/furo.js?v=46bd48cc"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=30646c52"></script>
+    </body>
+</html>

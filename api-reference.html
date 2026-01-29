@@ -1,0 +1,683 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="./">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="index" title="Index" href="genindex.html"><link rel="search" title="Search" href="search.html"><link rel="next" title="Development Guide" href="development.html"><link rel="prev" title="Frequently Asked Questions" href="faq.html">
+
+    <!-- Generated with Sphinx 7.4.7 and Furo 2025.12.19 -->
+        <title>API Reference - almanac 0.3.6 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=8dab3a3b" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="index.html"><div class="brand">almanac 0.3.6 documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
+  
+  <span class="sidebar-brand-text">almanac 0.3.6 documentation</span>
+  
+</a><form class="sidebar-search-container" method="get" action="search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="user-guide.html">User Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli-reference.html">CLI Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration.html">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="data-formats.html">Data Formats</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">Frequently Asked Questions</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Developer Guide</span></p>
+<ul class="current">
+<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="development.html">Development Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Documentation</span></p>
+<ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="api/modules.html">almanac</a><input aria-label="Toggle navigation of almanac" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/almanac.html">almanac package</a></li>
+</ul>
+</li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="view-this-page">
+  <a class="muted-link" href="https://github.com/andycasey/almanac/blob/main/docs/api-reference.md?plain=true" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div><div class="edit-this-page">
+  <a class="muted-link" href="https://github.com/andycasey/almanac/edit/main/docs/api-reference.md" rel="edit" title="Edit this page">
+    <svg><use href="#svg-pencil"></use></svg>
+    <span class="visually-hidden">Edit this page</span>
+  </a>
+</div><div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <section id="api-reference">
+<h1>API Reference<a class="headerlink" href="#api-reference" title="Link to this heading">¶</a></h1>
+<p>This document provides complete API reference for all <code class="docutils literal notranslate"><span class="pre">almanac</span></code> modules.</p>
+<section id="module-structure">
+<h2>Module Structure<a class="headerlink" href="#module-structure" title="Link to this heading">¶</a></h2>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>almanac/
+├── __init__.py          # Version information
+├── cli.py              # Command-line interface
+├── config.py           # Configuration management
+├── database.py         # Database connectivity
+├── apogee.py           # APOGEE data processing
+├── io.py               # HDF5 I/O operations
+├── display.py          # Output formatting and display
+├── logger.py           # Logging configuration
+└── utils.py            # Utility functions
+</pre></div>
+</div>
+</section>
+<section id="almanac-config">
+<h2>almanac.config<a class="headerlink" href="#almanac-config" title="Link to this heading">¶</a></h2>
+<p>Configuration management for almanac settings.</p>
+<section id="classes">
+<h3>Classes<a class="headerlink" href="#classes" title="Link to this heading">¶</a></h3>
+<section id="databaseconfig">
+<h4><code class="docutils literal notranslate"><span class="pre">DatabaseConfig</span></code><a class="headerlink" href="#databaseconfig" title="Link to this heading">¶</a></h4>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">DatabaseConfig</span><span class="p">:</span>
+    <span class="n">user</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;sdss_user&quot;</span>
+    <span class="n">host</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;operations.sdss.org&quot;</span> 
+    <span class="n">port</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5432</span>
+    <span class="n">domain</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;operations.sdss.*&quot;</span>
+</pre></div>
+</div>
+<p>Database connection configuration.</p>
+</section>
+<section id="observatorymjd">
+<h4><code class="docutils literal notranslate"><span class="pre">ObservatoryMJD</span></code><a class="headerlink" href="#observatorymjd" title="Link to this heading">¶</a></h4>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ObservatoryMJD</span><span class="p">:</span>
+    <span class="n">apo</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">59_558</span>  <span class="c1"># Apache Point Observatory</span>
+    <span class="n">lco</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">59_558</span>  <span class="c1"># Las Campanas Observatory</span>
+</pre></div>
+</div>
+<p>Minimum MJD values for each observatory.</p>
+</section>
+<section id="config">
+<h4><code class="docutils literal notranslate"><span class="pre">Config</span></code><a class="headerlink" href="#config" title="Link to this heading">¶</a></h4>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Config</span><span class="p">:</span>
+    <span class="n">sdssdb</span><span class="p">:</span> <span class="n">DatabaseConfig</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">DatabaseConfig</span><span class="p">)</span>
+    <span class="n">database_connect_time_warning</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span>  <span class="c1"># seconds</span>
+    <span class="n">sdssdb_exposure_min_mjd</span><span class="p">:</span> <span class="n">ObservatoryMJD</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">ObservatoryMJD</span><span class="p">)</span>
+    <span class="n">logging_level</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">20</span>  <span class="c1"># logging.INFO</span>
+</pre></div>
+</div>
+<p>Main configuration class containing all settings.</p>
+</section>
+</section>
+<section id="functions">
+<h3>Functions<a class="headerlink" href="#functions" title="Link to this heading">¶</a></h3>
+<section id="load-config-file-config-path-optional-str-none-dict">
+<h4><code class="docutils literal notranslate"><span class="pre">load_config_file(config_path:</span> <span class="pre">Optional[str]</span> <span class="pre">=</span> <span class="pre">None)</span> <span class="pre">-&gt;</span> <span class="pre">dict</span></code><a class="headerlink" href="#load-config-file-config-path-optional-str-none-dict" title="Link to this heading">¶</a></h4>
+<p>Load configuration from YAML file.</p>
+<p><strong>Parameters:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">config_path</span></code>: Path to config file (optional, uses default if None)</p></li>
+</ul>
+<p><strong>Returns:</strong> Dictionary of configuration values</p>
+</section>
+<section id="get-config-path-path">
+<h4><code class="docutils literal notranslate"><span class="pre">get_config_path()</span> <span class="pre">-&gt;</span> <span class="pre">Path</span></code><a class="headerlink" href="#get-config-path-path" title="Link to this heading">¶</a></h4>
+<p>Get the default configuration file path.</p>
+<p><strong>Returns:</strong> Path object to config file location</p>
+</section>
+</section>
+</section>
+<section id="almanac-database">
+<h2>almanac.database<a class="headerlink" href="#almanac-database" title="Link to this heading">¶</a></h2>
+<p>Database connectivity and SDSS database integration.</p>
+<section id="module-variables">
+<h3>Module Variables<a class="headerlink" href="#module-variables" title="Link to this heading">¶</a></h3>
+<section id="is-database-available-bool">
+<h4><code class="docutils literal notranslate"><span class="pre">is_database_available:</span> <span class="pre">bool</span></code><a class="headerlink" href="#is-database-available-bool" title="Link to this heading">¶</a></h4>
+<p>Whether database connection was successfully established.</p>
+</section>
+</section>
+<section id="imported-database-models">
+<h3>Imported Database Models<a class="headerlink" href="#imported-database-models" title="Link to this heading">¶</a></h3>
+<p>The module imports and exposes database models from <code class="docutils literal notranslate"><span class="pre">sdssdb</span></code>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">catalogdb</span></code>: Catalog database models</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">opsdb</span></code>: Operations database models</p></li>
+</ul>
+</section>
+</section>
+<section id="almanac-apogee">
+<h2>almanac.apogee<a class="headerlink" href="#almanac-apogee" title="Link to this heading">¶</a></h2>
+<p>Core APOGEE data processing functionality.</p>
+<section id="constants">
+<h3>Constants<a class="headerlink" href="#constants" title="Link to this heading">¶</a></h3>
+<section id="raw-header-keys">
+<h4><code class="docutils literal notranslate"><span class="pre">RAW_HEADER_KEYS</span></code><a class="headerlink" href="#raw-header-keys" title="Link to this heading">¶</a></h4>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">RAW_HEADER_KEYS</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="s2">&quot;DATE-OBS&quot;</span><span class="p">,</span> <span class="s2">&quot;FIELDID&quot;</span><span class="p">,</span> <span class="s2">&quot;DESIGNID&quot;</span><span class="p">,</span> <span class="s2">&quot;CONFIGID&quot;</span><span class="p">,</span> <span class="s2">&quot;SEEING&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;EXPTYPE&quot;</span><span class="p">,</span> <span class="s2">&quot;NREAD&quot;</span><span class="p">,</span> <span class="s2">&quot;IMAGETYP&quot;</span><span class="p">,</span> <span class="s2">&quot;LAMPQRTZ&quot;</span><span class="p">,</span> <span class="s2">&quot;LAMPTHAR&quot;</span><span class="p">,</span> 
+    <span class="s2">&quot;LAMPUNE&quot;</span><span class="p">,</span> <span class="s2">&quot;FOCUS&quot;</span><span class="p">,</span> <span class="s2">&quot;NAME&quot;</span><span class="p">,</span> <span class="s2">&quot;PLATEID&quot;</span><span class="p">,</span> <span class="s2">&quot;CARTID&quot;</span><span class="p">,</span> <span class="s2">&quot;MAPID&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;PLATETYP&quot;</span><span class="p">,</span> <span class="s2">&quot;OBSCMT&quot;</span><span class="p">,</span> <span class="s2">&quot;COLLPIST&quot;</span><span class="p">,</span> <span class="s2">&quot;COLPITCH&quot;</span><span class="p">,</span> <span class="s2">&quot;DITHPIX&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;TCAMMID&quot;</span><span class="p">,</span> <span class="s2">&quot;TLSDETB&quot;</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>FITS header keys extracted from raw APOGEE files.</p>
+</section>
+</section>
+<section id="id1">
+<h3>Functions<a class="headerlink" href="#id1" title="Link to this heading">¶</a></h3>
+<section id="parse-hexdump-headers-output-list-str-keys-tuple-str-default-str-list-str">
+<h4><code class="docutils literal notranslate"><span class="pre">_parse_hexdump_headers(output:</span> <span class="pre">List[str],</span> <span class="pre">keys:</span> <span class="pre">Tuple[str,</span> <span class="pre">...],</span> <span class="pre">default:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">&quot;&quot;)</span> <span class="pre">-&gt;</span> <span class="pre">List[str]</span></code><a class="headerlink" href="#parse-hexdump-headers-output-list-str-keys-tuple-str-default-str-list-str" title="Link to this heading">¶</a></h4>
+<p>Parse hexdump output to extract header key-value pairs.</p>
+<p><strong>Parameters:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">output</span></code>: List of strings from hexdump output</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">keys</span></code>: Tuple of header keys to look for</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">default</span></code>: Default value when key not found</p></li>
+</ul>
+<p><strong>Returns:</strong> List of extracted values</p>
+</section>
+</section>
+</section>
+<section id="almanac-io">
+<h2><a class="reference external" href="http://almanac.io">almanac.io</a><a class="headerlink" href="#almanac-io" title="Link to this heading">¶</a></h2>
+<p>HDF5 input/output operations for structured data storage.</p>
+<section id="id2">
+<h3>Functions<a class="headerlink" href="#id2" title="Link to this heading">¶</a></h3>
+<section id="get-or-create-group-fp-group-name">
+<h4><code class="docutils literal notranslate"><span class="pre">get_or_create_group(fp,</span> <span class="pre">group_name)</span></code><a class="headerlink" href="#get-or-create-group-fp-group-name" title="Link to this heading">¶</a></h4>
+<p>Get existing HDF5 group or create if it doesn’t exist.</p>
+<p><strong>Parameters:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">fp</span></code>: HDF5 file pointer</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">group_name</span></code>: Name of the group</p></li>
+</ul>
+<p><strong>Returns:</strong> HDF5 group object</p>
+</section>
+<section id="delete-hdf5-entry-fp-group-name">
+<h4><code class="docutils literal notranslate"><span class="pre">delete_hdf5_entry(fp,</span> <span class="pre">group_name)</span></code><a class="headerlink" href="#delete-hdf5-entry-fp-group-name" title="Link to this heading">¶</a></h4>
+<p>Delete HDF5 group/entry if it exists.</p>
+<p><strong>Parameters:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">fp</span></code>: HDF5 file pointer</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">group_name</span></code>: Name of entry to delete</p></li>
+</ul>
+</section>
+<section id="update-almanac-fp-exposures-sequence-indices-fiber-maps-compression-true-verbose-false">
+<h4><code class="docutils literal notranslate"><span class="pre">_update_almanac(fp,</span> <span class="pre">exposures,</span> <span class="pre">sequence_indices,</span> <span class="pre">fiber_maps,</span> <span class="pre">compression=True,</span> <span class="pre">verbose=False)</span></code><a class="headerlink" href="#update-almanac-fp-exposures-sequence-indices-fiber-maps-compression-true-verbose-false" title="Link to this heading">¶</a></h4>
+<p>Update HDF5 file with almanac data.</p>
+<p><strong>Parameters:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">fp</span></code>: HDF5 file pointer</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">exposures</span></code>: Exposure data table</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">sequence_indices</span></code>: Sequence index arrays</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">fiber_maps</span></code>: Fiber mapping data</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">compression</span></code>: Enable HDF5 compression</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">verbose</span></code>: Enable verbose output</p></li>
+</ul>
+</section>
+</section>
+</section>
+<section id="almanac-cli">
+<h2>almanac.cli<a class="headerlink" href="#almanac-cli" title="Link to this heading">¶</a></h2>
+<p>Command-line interface implementation using Click.</p>
+<section id="main-command">
+<h3>Main Command<a class="headerlink" href="#main-command" title="Link to this heading">¶</a></h3>
+<section id="click-group-invoke-without-command-true">
+<h4><code class="docutils literal notranslate"><span class="pre">&#64;click.group(invoke_without_command=True)</span></code><a class="headerlink" href="#click-group-invoke-without-command-true" title="Link to this heading">¶</a></h4>
+<p>Main CLI entry point with comprehensive options for querying APOGEE data.</p>
+<p><strong>Key Options:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--mjd</span></code>: Single MJD query (supports negative relative values)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--mjd-start/--mjd-end</span></code>: MJD range queries</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--date/--date-start/--date-end</span></code>: Calendar date queries</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--apo/--lco</span></code>: Observatory selection</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--fibers/--fibres</span></code>: Include fiber mappings</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--no-x-match</span></code>: Skip cross-matching</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--output/-O</span></code>: Output file path</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--processes/-p</span></code>: Parallel processing</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--verbosity/-v</span></code>: Verbosity level (stackable)</p></li>
+</ul>
+</section>
+</section>
+<section id="configuration-subcommands">
+<h3>Configuration Subcommands<a class="headerlink" href="#configuration-subcommands" title="Link to this heading">¶</a></h3>
+<section id="config-show">
+<h4><code class="docutils literal notranslate"><span class="pre">config</span> <span class="pre">show</span></code><a class="headerlink" href="#config-show" title="Link to this heading">¶</a></h4>
+<p>Display current configuration settings.</p>
+</section>
+<section id="config-get-key">
+<h4><code class="docutils literal notranslate"><span class="pre">config</span> <span class="pre">get</span> <span class="pre">&lt;key&gt;</span></code><a class="headerlink" href="#config-get-key" title="Link to this heading">¶</a></h4>
+<p>Get specific configuration value.</p>
+</section>
+<section id="config-set-key-value">
+<h4><code class="docutils literal notranslate"><span class="pre">config</span> <span class="pre">set</span> <span class="pre">&lt;key&gt;</span> <span class="pre">&lt;value&gt;</span></code><a class="headerlink" href="#config-set-key-value" title="Link to this heading">¶</a></h4>
+<p>Set configuration value.</p>
+</section>
+</section>
+</section>
+<section id="almanac-display">
+<h2>almanac.display<a class="headerlink" href="#almanac-display" title="Link to this heading">¶</a></h2>
+<p>Output formatting and display utilities.</p>
+<p><em>Note: Specific functions require code examination for detailed documentation.</em></p>
+</section>
+<section id="almanac-logger">
+<h2>almanac.logger<a class="headerlink" href="#almanac-logger" title="Link to this heading">¶</a></h2>
+<p>Logging configuration and setup.</p>
+<p><em>Note: Specific functions require code examination for detailed documentation.</em></p>
+</section>
+<section id="almanac-utils">
+<h2>almanac.utils<a class="headerlink" href="#almanac-utils" title="Link to this heading">¶</a></h2>
+<p>General utility functions.</p>
+<p><em>Note: Ensures Yanny table reader/writer registration for astropy.</em></p>
+</section>
+<section id="data-types-and-structures">
+<h2>Data Types and Structures<a class="headerlink" href="#data-types-and-structures" title="Link to this heading">¶</a></h2>
+<section id="hdf5-output-structure">
+<h3>HDF5 Output Structure<a class="headerlink" href="#hdf5-output-structure" title="Link to this heading">¶</a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>observatory/mjd/
+├── exposures           # Exposure metadata table
+├── sequences          # Nx2 array of exposure ranges forming sequences  
+└── fibers/
+    ├── fps/configid    # FPS fiber mappings by config ID
+    └── plates/plateid  # Plate fiber mappings by plate ID
+</pre></div>
+</div>
+</section>
+<section id="exposure-table-columns">
+<h3>Exposure Table Columns<a class="headerlink" href="#exposure-table-columns" title="Link to this heading">¶</a></h3>
+<p>Common exposure metadata columns:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">observatory</span></code>: “apo” or “lco”</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">mjd</span></code>: Modified Julian Date</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">exposure</span></code>: Exposure number</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">exptype</span></code>: Exposure type</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">nread</span></code>: Number of reads</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">seeing</span></code>: Seeing conditions</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">focus</span></code>: Focus position</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">configid</span></code>: Configuration ID</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">designid</span></code>: Design ID</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">fieldid</span></code>: Field ID</p></li>
+</ul>
+</section>
+<section id="fiber-mapping-columns">
+<h3>Fiber Mapping Columns<a class="headerlink" href="#fiber-mapping-columns" title="Link to this heading">¶</a></h3>
+<p><strong>FPS (SDSS-V) Columns:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">sdss_id</span></code>: SDSS identifier</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">catalogid</span></code>: Catalog identifier</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">program</span></code>: Survey program</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">category</span></code>: Target category</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">firstcarton</span></code>: Primary carton</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ra</span></code>, <code class="docutils literal notranslate"><span class="pre">dec</span></code>: Target coordinates</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">fiberId</span></code>: Fiber identifier</p></li>
+</ul>
+<p><strong>Plate (SDSS-IV) Columns:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">sdss_id</span></code>: SDSS identifier</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">target_id</span></code>: Target identifier</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">target_ra</span></code>, <code class="docutils literal notranslate"><span class="pre">target_dec</span></code>: Target coordinates</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">target_type</span></code>: Target classification</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">source_type</span></code>: Source classification</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">fiber_id</span></code>: Fiber identifier</p></li>
+</ul>
+</section>
+</section>
+<section id="error-handling">
+<h2>Error Handling<a class="headerlink" href="#error-handling" title="Link to this heading">¶</a></h2>
+<p>The package includes robust error handling for:</p>
+<ul class="simple">
+<li><p>Database connection failures</p></li>
+<li><p>Missing raw data files</p></li>
+<li><p>Invalid date/MJD specifications</p></li>
+<li><p>File I/O errors</p></li>
+<li><p>Network connectivity issues</p></li>
+</ul>
+<p>Errors are logged using the configured logging system with appropriate severity levels.</p>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="development.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Development Guide</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="faq.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Frequently Asked Questions</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2024, Andy Casey
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">API Reference</a><ul>
+<li><a class="reference internal" href="#module-structure">Module Structure</a></li>
+<li><a class="reference internal" href="#almanac-config">almanac.config</a><ul>
+<li><a class="reference internal" href="#classes">Classes</a><ul>
+<li><a class="reference internal" href="#databaseconfig"><code class="docutils literal notranslate"><span class="pre">DatabaseConfig</span></code></a></li>
+<li><a class="reference internal" href="#observatorymjd"><code class="docutils literal notranslate"><span class="pre">ObservatoryMJD</span></code></a></li>
+<li><a class="reference internal" href="#config"><code class="docutils literal notranslate"><span class="pre">Config</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#functions">Functions</a><ul>
+<li><a class="reference internal" href="#load-config-file-config-path-optional-str-none-dict"><code class="docutils literal notranslate"><span class="pre">load_config_file(config_path:</span> <span class="pre">Optional[str]</span> <span class="pre">=</span> <span class="pre">None)</span> <span class="pre">-&gt;</span> <span class="pre">dict</span></code></a></li>
+<li><a class="reference internal" href="#get-config-path-path"><code class="docutils literal notranslate"><span class="pre">get_config_path()</span> <span class="pre">-&gt;</span> <span class="pre">Path</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a class="reference internal" href="#almanac-database">almanac.database</a><ul>
+<li><a class="reference internal" href="#module-variables">Module Variables</a><ul>
+<li><a class="reference internal" href="#is-database-available-bool"><code class="docutils literal notranslate"><span class="pre">is_database_available:</span> <span class="pre">bool</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#imported-database-models">Imported Database Models</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#almanac-apogee">almanac.apogee</a><ul>
+<li><a class="reference internal" href="#constants">Constants</a><ul>
+<li><a class="reference internal" href="#raw-header-keys"><code class="docutils literal notranslate"><span class="pre">RAW_HEADER_KEYS</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#id1">Functions</a><ul>
+<li><a class="reference internal" href="#parse-hexdump-headers-output-list-str-keys-tuple-str-default-str-list-str"><code class="docutils literal notranslate"><span class="pre">_parse_hexdump_headers(output:</span> <span class="pre">List[str],</span> <span class="pre">keys:</span> <span class="pre">Tuple[str,</span> <span class="pre">...],</span> <span class="pre">default:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">&quot;&quot;)</span> <span class="pre">-&gt;</span> <span class="pre">List[str]</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a class="reference internal" href="#almanac-io">almanac.io</a><ul>
+<li><a class="reference internal" href="#id2">Functions</a><ul>
+<li><a class="reference internal" href="#get-or-create-group-fp-group-name"><code class="docutils literal notranslate"><span class="pre">get_or_create_group(fp,</span> <span class="pre">group_name)</span></code></a></li>
+<li><a class="reference internal" href="#delete-hdf5-entry-fp-group-name"><code class="docutils literal notranslate"><span class="pre">delete_hdf5_entry(fp,</span> <span class="pre">group_name)</span></code></a></li>
+<li><a class="reference internal" href="#update-almanac-fp-exposures-sequence-indices-fiber-maps-compression-true-verbose-false"><code class="docutils literal notranslate"><span class="pre">_update_almanac(fp,</span> <span class="pre">exposures,</span> <span class="pre">sequence_indices,</span> <span class="pre">fiber_maps,</span> <span class="pre">compression=True,</span> <span class="pre">verbose=False)</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a class="reference internal" href="#almanac-cli">almanac.cli</a><ul>
+<li><a class="reference internal" href="#main-command">Main Command</a><ul>
+<li><a class="reference internal" href="#click-group-invoke-without-command-true"><code class="docutils literal notranslate"><span class="pre">&#64;click.group(invoke_without_command=True)</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#configuration-subcommands">Configuration Subcommands</a><ul>
+<li><a class="reference internal" href="#config-show"><code class="docutils literal notranslate"><span class="pre">config</span> <span class="pre">show</span></code></a></li>
+<li><a class="reference internal" href="#config-get-key"><code class="docutils literal notranslate"><span class="pre">config</span> <span class="pre">get</span> <span class="pre">&lt;key&gt;</span></code></a></li>
+<li><a class="reference internal" href="#config-set-key-value"><code class="docutils literal notranslate"><span class="pre">config</span> <span class="pre">set</span> <span class="pre">&lt;key&gt;</span> <span class="pre">&lt;value&gt;</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a class="reference internal" href="#almanac-display">almanac.display</a></li>
+<li><a class="reference internal" href="#almanac-logger">almanac.logger</a></li>
+<li><a class="reference internal" href="#almanac-utils">almanac.utils</a></li>
+<li><a class="reference internal" href="#data-types-and-structures">Data Types and Structures</a><ul>
+<li><a class="reference internal" href="#hdf5-output-structure">HDF5 Output Structure</a></li>
+<li><a class="reference internal" href="#exposure-table-columns">Exposure Table Columns</a></li>
+<li><a class="reference internal" href="#fiber-mapping-columns">Fiber Mapping Columns</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#error-handling">Error Handling</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script src="_static/documentation_options.js?v=8da8c241"></script>
+    <script src="_static/doctools.js?v=9a2dae69"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/scripts/furo.js?v=46bd48cc"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=30646c52"></script>
+    </body>
+</html>
