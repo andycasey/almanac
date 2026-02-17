@@ -1072,6 +1072,183 @@ def postprocess(input_path, output_prefix, processes, limit, **kwargs):
     for key in expected - actual:
         click.echo(f"Warning: missing field {key}")
 
+PGDUMP_TABLES = (
+    "catalogdb.sdss_id_flat",
+    "catalogdb.sdss_id_to_catalog",
+    "catalogdb.catalog",
+    "catalogdb.version",
+    "catalogdb.catalog_to_allstar_dr17_synspec_rev1",
+    "catalogdb.allstar_dr17_synspec_rev1",
+    "catalogdb.catalog_to_gaia_dr2",
+    "catalogdb.gaia_dr3",
+    "catalogdb.twomass_psc",
+    "catalogdb.catalog_to_twomass_psc",
+    "targetdb.target",
+    "targetdb.carton_to_target",
+    "targetdb.assignment",
+    "targetdb.assignment_status",
+    "targetdb.hole",
+    "targetdb.observatory",
+    "targetdb.design",
+    "targetdb.design_to_field",
+    "targetdb.field",
+    "opsdb_apo.exposure",
+    "opsdb_apo.exposure_flavor",
+    "opsdb_lco.exposure",
+    "opsdb_lco.exposure_flavor",
+)
+
+
+@main.command()
+@click.argument("output_dir", type=str)
+@click.option("--host", default=None, type=str, help="PostgreSQL host (overrides config)")
+@click.option("--user", "-U", default=None, type=str, help="PostgreSQL user (overrides config)")
+@click.option("--database", "-d", default="sdss5db", show_default=True, type=str, help="PostgreSQL database name")
+def pgdump(output_dir, host, user, database, **kwargs):
+    """Dump a fixed set of PostgreSQL tables to OUTPUT_DIR.
+
+    Each table is dumped in pg_dump custom format (.dump). Tables that
+    fail are skipped and reported at the end.
+    """
+
+    import os
+    import subprocess
+
+    from almanac import config
+
+    pg_host = host or config.sdssdb.host
+    pg_user = user or config.sdssdb.user
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    click.echo(f"Found {len(PGDUMP_TABLES)} tables")
+    click.echo(f"Output directory: {output_dir}")
+    click.echo("---")
+
+    success = 0
+    failed = 0
+
+    for entry in PGDUMP_TABLES:
+        schema, _, table = entry.partition(".")
+        out_path = os.path.join(output_dir, f"{schema}.{table}.dump")
+        click.echo(f"Dumping {schema}.{table} ... ", nl=False)
+
+        result = subprocess.run(
+            [
+                "pg_dump",
+                "-h", pg_host,
+                "-d", database,
+                "-U", pg_user,
+                "-Fc",
+                "--no-owner",
+                "--no-privileges",
+                "-n", schema,
+                "-t", f"{schema}.{table}",
+                "-f", out_path,
+            ],
+            capture_output=True,
+        )
+
+        if result.returncode == 0:
+            click.echo("OK")
+            success += 1
+        else:
+            click.echo("FAILED (skipping)")
+            if os.path.exists(out_path):
+                os.remove(out_path)
+            failed += 1
+
+    click.echo("---")
+    click.echo(f"Done: {success} succeeded, {failed} failed out of {len(PGDUMP_TABLES)} tables")
+
+
+@main.command()
+@click.argument("output_dir", type=str)
+@click.option("--host", "-h", required=True, type=str, help="Target PostgreSQL host")
+@click.option("--database", "-d", required=True, type=str, help="Target PostgreSQL database name")
+@click.option("--user", "-U", default=None, type=str, help="Target PostgreSQL user (overrides config)")
+@click.option("--port", "-p", default=None, type=int, help="Target PostgreSQL port (overrides config)")
+def pgrestore(output_dir, host, database, user, port, **kwargs):
+    """Restore dumped PostgreSQL tables from OUTPUT_DIR into a target database.
+
+    Reads the .dump files produced by `almanac pgdump` and restores each
+    one in turn. Schemas are created in the target database automatically
+    if they do not already exist. Tables that cannot be restored are
+    skipped and reported at the end.
+    """
+
+    import os
+    import subprocess
+
+    from almanac import config
+
+    pg_user = user or config.sdssdb.user
+    pg_port = str(port or config.sdssdb.port)
+
+    if not os.path.isdir(output_dir):
+        raise click.ClickException(f"Directory not found: {output_dir}")
+
+    # Base args shared by both psql and pg_restore calls
+    conn_args = ["-h", host, "-U", pg_user, "-p", pg_port, "-d", database]
+
+    # Ensure all required schemas exist before restoring any tables.
+    schemas = sorted({entry.partition(".")[0] for entry in PGDUMP_TABLES})
+    click.echo(f"Creating schemas if needed: {', '.join(schemas)}")
+    for schema in schemas:
+        result = subprocess.run(
+            ["psql", *conn_args, "-c", f"CREATE SCHEMA IF NOT EXISTS {schema};"],
+            capture_output=True,
+        )
+        if result.returncode != 0:
+            raise click.ClickException(
+                f"Failed to create schema '{schema}':\n"
+                + result.stderr.decode(errors="replace")
+            )
+
+    click.echo(f"Restoring {len(PGDUMP_TABLES)} tables into {host}/{database}")
+    click.echo("---")
+
+    success = 0
+    failed = 0
+    missing = 0
+
+    for entry in PGDUMP_TABLES:
+        schema, _, table = entry.partition(".")
+        dump_path = os.path.join(output_dir, f"{schema}.{table}.dump")
+
+        if not os.path.exists(dump_path):
+            click.echo(f"Restoring {schema}.{table} ... MISSING (skipping)")
+            missing += 1
+            continue
+
+        click.echo(f"Restoring {schema}.{table} ... ", nl=False)
+
+        result = subprocess.run(
+            [
+                "pg_restore",
+                *conn_args,
+                "--no-owner",
+                "--no-acl",
+                "-Fc",
+                dump_path,
+            ],
+            capture_output=True,
+        )
+
+        if result.returncode == 0:
+            click.echo("OK")
+            success += 1
+        else:
+            click.echo("FAILED (skipping)")
+            failed += 1
+
+    click.echo("---")
+    total = len(PGDUMP_TABLES)
+    click.echo(
+        f"Done: {success} succeeded, {failed} failed, {missing} missing "
+        f"out of {total} tables"
+    )
+
 
 @main.group()
 def config(**kwargs):
