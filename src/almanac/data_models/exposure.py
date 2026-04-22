@@ -365,6 +365,12 @@ class Exposure(BaseModel):
                 except Exception as e:
                     e.add_note(f"Originated from {self}")
                     raise
+                else:
+                    if max(t.fix_fiber_flag for t in self._targets) > 0:
+                        self._targets = sorted(
+                            self._targets,
+                            key=lambda t: t.fiber_id
+                        )
             else:
                 self._targets = tuple()
         return self._targets
