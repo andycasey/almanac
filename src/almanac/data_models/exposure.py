@@ -355,22 +355,17 @@ class Exposure(BaseModel):
                             # went wrong in early plate era.
                             rows["plugged_mjd"] = self.plugged_mjd
                             rows["observatory"] = self.observatory
-                try:
-                    rows.sort("fiberId")
-                except:
-                    None
 
                 try:
                     self._targets = tuple([factory(**r) for r in rows])
                 except Exception as e:
                     e.add_note(f"Originated from {self}")
                     raise
-                else:
-                    if max(t.fix_fiber_flag for t in self._targets) > 0:
-                        self._targets = sorted(
-                            self._targets,
-                            key=lambda t: t.fiber_id
-                        )
+
+                # Ensure that things are always sorted by fiber ID, even if
+                # there are issues with fiber fixings, etc.
+                self._targets = sorted(self._targets, key=lambda t: t.fiber_id)
+
             else:
                 self._targets = tuple()
         return self._targets
