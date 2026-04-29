@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/almanac 
+      url: https://pypi.org/p/sdss-almanac
     permissions:
       id-token: write 
       
