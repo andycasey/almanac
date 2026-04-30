@@ -344,6 +344,8 @@ def _write_models_to_hdf5_group(
 
             # Create array filled with default value
             field_data = np.full(num_records, default, dtype=hdf5_dtype)
+        else:
+            field_data = np.atleast_1d(field_data)
 
         if num_records is None:
             num_records = len(field_data)
@@ -362,7 +364,7 @@ def _write_models_to_hdf5_group(
             chunks = (chunks[0], field_data.shape[-1])
         compression_setting = compression if chunk_size is not None and num_records > chunk_size else None
 
-        if field_spec.annotation is np.ndarray:
+        if getattr(field_spec, "annotation", None) is np.ndarray:
             dataset = hdf5_group.create_dataset(
                 field_name,
                 data=field_data,

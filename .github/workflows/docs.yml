@@ -81,12 +81,17 @@ jobs:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     steps:
     - name: Trigger ReadTheDocs build
-      if: ${{ secrets.READTHEDOCS_WEBHOOK_URL }}
+      env:
+        READTHEDOCS_WEBHOOK_URL: ${{ secrets.READTHEDOCS_WEBHOOK_URL }}
       run: |
-        curl -X POST \
-          -H "Content-Type: application/json" \
-          -d '{"branches": ["main", "master"]}' \
-          ${{ secrets.READTHEDOCS_WEBHOOK_URL }}
+        if [ -n "$READTHEDOCS_WEBHOOK_URL" ]; then
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -d '{"branches": ["main", "master"]}' \
+            "$READTHEDOCS_WEBHOOK_URL"
+        else
+          echo "READTHEDOCS_WEBHOOK_URL not set, skipping"
+        fi
 
   # Check documentation quality
   doc-quality:
