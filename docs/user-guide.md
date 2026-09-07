@@ -122,6 +122,19 @@ If the run is interrupted or some nights fail, simply re-run the same command: o
 
 Every detected missing exposure is recorded in a run-level `/missing_exposures` table in the output file, with a reason code distinguishing gaps on disk, database/disk mismatches, and database outages. Review this table before downstream processing; see [Data Formats](data-formats.md) for the schema and reason codes.
 
+## Adding Fiber Mappings Later
+
+If an output file was created without `--fibers`, add the fiber mappings afterwards with `almanac add fibers`. The exposures already in the file are used to find the confSummary (FPS era) or plugmap (plate era) files, so the raw exposure headers are not read again:
+
+```bash
+almanac add fibers survey.h5
+almanac add fibers survey.h5 --mjd 60000 --apo   # just one night
+almanac add fibers survey.h5 --no-x-match        # skip the SDSS ID cross-match
+almanac add fibers survey.h5 -p 8                # use 8 processes
+```
+
+By default all MJDs in the file are processed; restrict with `--mjd`, `--mjds`, `--mjd-start`/`--mjd-end`, or `--apo`/`--lco`. A night that already has fiber mappings has them replaced.
+
 ## Adding Catalog Metadata
 
 Once you have an output file with fiber mappings, `almanac add metadata` decorates it with a `meta/` group containing astrometry, photometry, and targeting flags for every cross-matched target (queried once per unique `sdss_id`):
@@ -131,7 +144,7 @@ almanac add metadata survey.h5
 almanac add metadata survey.h5 --query-workers 4   # be gentle on remote tunnels
 ```
 
-By default all MJDs in the file are processed; restrict with `--mjd`, `--mjds`, `--mjd-start`/`--mjd-end`, or `--apo`/`--lco`.
+By default all MJDs in the file are processed; restrict with `--mjd`, `--mjds`, `--mjd-start`/`--mjd-end`, or `--apo`/`--lco`. If the file has no fiber mappings for the selected nights, the command warns and exits without writing anything: run `almanac add fibers` first.
 
 ## Advanced Features
 

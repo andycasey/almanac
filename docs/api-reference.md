@@ -140,6 +140,15 @@ Delete HDF5 group/entry if it exists.
 - `fp`: HDF5 file pointer  
 - `group_name`: Name of entry to delete
 
+#### `write_fibers(fp, observatory, mjd, exposures, verbose=False)`
+Write the fiber-to-target mappings for one night to `raw/{observatory}/{mjd}/fibers/{config_id or plate_id}`, one group per configuration (or plate). Only exposures whose `targets` have been populated (see `almanac.apogee.cross_match_targets`) are written; existing groups for the same configuration are replaced.
+
+#### `read_exposures(fp, observatory, mjd)`
+Reconstruct the `Exposure` models for one night from the `raw/{observatory}/{mjd}/exposures` group, in exposure-number order, without touching the raw exposure headers. Returns an empty list if the group does not exist.
+
+#### `read_sequences(fp, observatory, mjd)`
+Read the exposure sequences for one night as a dictionary of image type to `(start, end)` pairs of 1-indexed exposure numbers. Returns an empty dictionary if the group does not exist.
+
 #### `_update_almanac(fp, exposures, sequence_indices, fiber_maps, compression=True, verbose=False)`
 Update HDF5 file with almanac data.
 
