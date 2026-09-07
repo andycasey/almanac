@@ -569,6 +569,192 @@ def add(**kwargs):
     pass
 
 
+def _select_nights(fp, observatories, mjds=None):
+    """
+    Return the (observatory, mjd) pairs present in an almanac file, restricted
+    to the given observatories and, if given, to the given MJDs.
+    """
+    mjds = None if mjds is None else set(mjds)
+    nights = []
+    for observatory in observatories:
+        if f"raw/{observatory}" not in fp:
+            continue
+        for mjd in sorted(int(key) for key in fp[f"raw/{observatory}"]):
+            if mjds is None or mjd in mjds:
+                nights.append((observatory, mjd))
+    return nights
+
+
+def _add_fibers_worker(observatory, mjd, exposures, sequences, xmatch):
+    """
+    Load (and optionally cross-match) the fiber-to-target mapping for one
+    night. Returns the exposures with their `targets` populated, so the
+    result can be shipped back from a worker process and written by the
+    parent.
+    """
+    from almanac import apogee
+
+    apogee.cross_match_targets(exposures, sequences.get("objects", []), xmatch=xmatch)
+    return (observatory, mjd, exposures)
+
+
+@add.command()
+@click.argument("input_path", type=str)
+@click.option(
+    "--mjd",
+    default=None,
+    type=int,
+    help="Modified Julian date to query. Use negative values to indicate relative to current MJD",
+)
+@click.option("--mjds", default=None, type=str,
+              help="Comma-separated explicit MJD list (non-contiguous OK)")
+@click.option("--mjd-start", default=None, type=int, help="Start of MJD range to query")
+@click.option("--mjd-end", default=None, type=int, help="End of MJD range to query")
+@click.option("--date", default=None, type=str, help="Date to query (e.g., 2024-01-15)")
+@click.option(
+    "--date-start", default=None, type=str, help="Start of date range to query"
+)
+@click.option("--date-end", default=None, type=str, help="End of date range to query")
+@click.option("--apo", is_flag=True, help="Query Apache Point Observatory data")
+@click.option("--lco", is_flag=True, help="Query Las Campanas Observatory data")
+@click.option(
+    "--no-x-match", is_flag=True, help="Do not cross-match targets with SDSS-V database"
+)
+@click.option(
+    "--processes", "-p", default=None, type=int, help="Number of processes to use"
+)
+def fibers(
+    input_path,
+    mjd,
+    mjds,
+    mjd_start,
+    mjd_end,
+    date,
+    date_start,
+    date_end,
+    apo,
+    lco,
+    no_x_match,
+    processes,
+    **kwargs,
+):
+    """Add fibre-to-target mappings to an existing Almanac file.
+
+    The exposures already recorded in the file are used to locate the
+    confSummary (FPS era) or plugmap (plate era) files, so the raw exposure
+    headers are not read again. Fibre mappings for a night that already has
+    them are replaced.
+    """
+
+    import os
+    import h5py as h5
+    import concurrent.futures
+    from tqdm import tqdm
+    from almanac import apogee, io, logger, utils
+
+    observatories = utils.get_observatories(apo, lco)
+    mjds, *_ = utils.parse_mjds(
+        mjd, mjd_start, mjd_end, date, date_start, date_end, return_nones=True, mjds=mjds
+    )
+
+    # Everything needed to find the fibre mapping files is in the exposures
+    # group, so read it all up front and close the file before any (possibly
+    # parallel) processing starts.
+    tasks = []  # [(observatory, mjd, exposures, sequences), ...]
+    with h5.File(input_path, "r") as fp:
+        for observatory, mjd in _select_nights(fp, observatories, mjds):
+            exposures = io.read_exposures(fp, observatory, mjd)
+            if not exposures:
+                continue
+            sequences = io.read_sequences(fp, observatory, mjd)
+            tasks.append((observatory, mjd, exposures, sequences))
+
+    if not tasks:
+        logger.warning(f"No exposures found in {input_path} for the selected nights")
+        return
+
+    xmatch = not no_x_match
+    done = []
+    failed = []  # [(observatory, mjd, error message), ...]
+
+    with h5.File(input_path, "a") as fp:
+
+        def _handle(observatory, mjd, get_result):
+            try:
+                _, _, exposures = get_result()
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                # Per-MJD fault isolation: record and continue.
+                logger.exception(f"Failed to add fibres for {observatory}/{mjd}: {e}")
+                failed.append((observatory, mjd, str(e)))
+            else:
+                io.write_fibers(fp, observatory, mjd, exposures)
+                done.append((observatory, mjd))
+
+        if processes is None:
+            for observatory, mjd, exposures, sequences in tqdm(
+                tasks, desc="Adding fibre mappings"
+            ):
+                _handle(
+                    observatory,
+                    mjd,
+                    lambda: _add_fibers_worker(
+                        observatory, mjd, exposures, sequences, xmatch
+                    ),
+                )
+        else:
+            if processes < 0:
+                processes = os.cpu_count()
+
+            initargs = ()
+            if xmatch and apogee.any_plate_era([(m, o) for o, m, *_ in tasks]):
+                # See `main`: build the APOGEE ID lookup once and ship it to
+                # every worker rather than having each worker re-query it.
+                logger.info(
+                    "Building APOGEE ID lookup in parent "
+                    "(plate-era nights present)"
+                )
+                initargs = (apogee.create_apogee_id_lookup(),)
+
+            with concurrent.futures.ProcessPoolExecutor(
+                max_workers=processes,
+                initializer=_pool_initializer,
+                initargs=initargs,
+            ) as pool:
+                futures = {
+                    pool.submit(
+                        _add_fibers_worker, observatory, mjd, exposures, sequences, xmatch
+                    ): (observatory, mjd)
+                    for observatory, mjd, exposures, sequences in tasks
+                }
+                for future in tqdm(
+                    concurrent.futures.as_completed(futures),
+                    total=len(futures),
+                    desc="Adding fibre mappings",
+                ):
+                    observatory, mjd = futures[future]
+                    _handle(observatory, mjd, future.result)
+
+    logger.info(f"Added fibre mappings to {input_path} for {len(done)} nights")
+    if failed:
+        logger.warning(f"{len(failed)} observatory/MJD pairs failed and were skipped:")
+        for observatory, mjd, message in failed:
+            logger.warning(f"  - {observatory}/{mjd}: {message}")
+
+
+# British-spelling alias (hidden from the command listing), matching --fibres.
+add.add_command(
+    click.Command(
+        name="fibres",
+        callback=fibers.callback,
+        params=fibers.params,
+        help=fibers.help,
+        hidden=True,
+    )
+)
+
+
 def _get_sdss_ids(fp, obs, mjd):
     group = fp.get(f"raw/{obs}/{mjd}/fibers", [])
     sdss_ids = set()
