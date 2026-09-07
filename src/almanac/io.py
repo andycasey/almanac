@@ -83,32 +83,107 @@ def update(
             _print(f"\traw/{observatory}/{mjd}/sequences/{image_type}")
 
     if fibers:
-        fibers_group = get_or_create_group(fp, f"raw/{observatory}/{mjd}/fibers")
-        done = set()
-        for exposure in exposures:
-            reference_id_string = str(
-                exposure.config_id if exposure.fps else exposure.plate_id
-            )
-            if reference_id_string in done:
-                # Check `done` BEFORE touching `exposure.targets`: `targets`
-                # is a lazy property, and for exposures whose configuration
-                # has already been written, accessing it would re-parse the
-                # confSummary/plugmap yanny files only to discard the result.
-                # Workers pre-compute (and pickle) targets for the exposures
-                # that are actually written, so this ordering keeps the
-                # parent process from redoing ~seconds of parsing per night.
-                continue
+        write_fibers(fp, observatory, mjd, exposures, verbose=verbose)
 
-            if not exposure.targets:
-                continue
 
-            delete_hdf5_entry(fibers_group, reference_id_string)
-            write_models_to_hdf5_group(
-                exposure.targets,
-                fibers_group.create_group(reference_id_string, track_order=True)
-            )
-            done.add(reference_id_string)
-            _print(f"\traw/{observatory}/{mjd}/fibers/{reference_id_string}")
+def write_fibers(fp, observatory, mjd, exposures, verbose: bool = False):
+    """
+    Write the fiber-to-target mappings for one observatory and MJD to
+    `raw/{observatory}/{mjd}/fibers/{config_id or plate_id}`, one group per
+    configuration (FPS era) or plate (plate era). Existing groups for the same
+    configuration are replaced.
+
+    Only the first exposure of each configuration is consulted, and only
+    exposures whose `targets` have been populated (see
+    `almanac.apogee.cross_match_targets`) are written.
+    """
+    _print = print if verbose else lambda *args, **kwargs: None
+
+    fibers_group = get_or_create_group(fp, f"raw/{observatory}/{mjd}/fibers")
+    done = set()
+    for exposure in exposures:
+        reference_id_string = str(
+            exposure.config_id if exposure.fps else exposure.plate_id
+        )
+        if reference_id_string in done:
+            # Check `done` BEFORE touching `exposure.targets`: `targets`
+            # is a lazy property, and for exposures whose configuration
+            # has already been written, accessing it would re-parse the
+            # confSummary/plugmap yanny files only to discard the result.
+            # Workers pre-compute (and pickle) targets for the exposures
+            # that are actually written, so this ordering keeps the
+            # parent process from redoing ~seconds of parsing per night.
+            continue
+
+        if not exposure.targets:
+            continue
+
+        delete_hdf5_entry(fibers_group, reference_id_string)
+        write_models_to_hdf5_group(
+            exposure.targets,
+            fibers_group.create_group(reference_id_string, track_order=True)
+        )
+        done.add(reference_id_string)
+        _print(f"\traw/{observatory}/{mjd}/fibers/{reference_id_string}")
+
+
+def read_exposures(fp, observatory, mjd) -> List[Exposure]:
+    """
+    Reconstruct the `Exposure` models for one observatory and MJD from an
+    existing almanac file, in exposure-number order.
+
+    This reads only the `raw/{observatory}/{mjd}/exposures` group; no raw
+    exposure headers are touched. Returns an empty list if the group does not
+    exist or is empty.
+    """
+    path = f"raw/{observatory}/{mjd}/exposures"
+    if path not in fp:
+        return []
+    group = fp[path]
+
+    columns = {
+        name: group[name][:]
+        for name in Exposure.model_fields
+        if name in group
+    }
+    if not columns:
+        return []
+    num_records = len(next(iter(columns.values())))
+
+    exposures = []
+    for i in range(num_records):
+        kwds = {}
+        for name, values in columns.items():
+            value = values[i]
+            if isinstance(value, bytes):
+                value = value.decode("utf-8")
+                if value in ("", "None"):
+                    # Unset optional string (stored as an empty or "None"
+                    # byte string): let the model default apply.
+                    continue
+            elif isinstance(value, np.generic):
+                value = value.item()
+            kwds[name] = value
+        kwds.setdefault("prefix", dict(apo="apR", lco="asR").get(kwds["observatory"]))
+        exposures.append(Exposure(**kwds))
+    return exposures
+
+
+def read_sequences(fp, observatory, mjd) -> Dict[str, List[Tuple[int, int]]]:
+    """
+    Read the exposure sequences (e.g. "objects", "arclamps", "missing") for
+    one observatory and MJD from an existing almanac file, as a dictionary of
+    (start, end) pairs of 1-indexed exposure numbers. Returns an empty
+    dictionary if the sequences group does not exist.
+    """
+    path = f"raw/{observatory}/{mjd}/sequences"
+    sequences = {}
+    if path in fp:
+        for image_type in fp[path]:
+            sequences[image_type] = [
+                (int(start), int(end)) for start, end in fp[path][image_type][:]
+            ]
+    return sequences
 
 
 
