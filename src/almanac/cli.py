@@ -808,13 +808,17 @@ def metadata(
     query_workers,
     **kwargs,
 ):
-    """Add astrometry and photometry to an existing Almanac file."""
+    """Add astrometry and photometry to an existing Almanac file.
+
+    The file must already contain fibre mappings (created with the --fibers
+    flag, or added with `almanac add fibers`).
+    """
 
     import os
+    import sys
     import h5py as h5
     import concurrent.futures
-    from itertools import product
-    from almanac import utils
+    from almanac import logger, utils
     from almanac.catalog import query
     from tqdm import tqdm
 
@@ -827,17 +831,30 @@ def metadata(
     )
     sdss_ids = set()
     with h5.File(input_path, "r") as fp:
-        if mjds is None:
-            mjds = []
-            for obs in observatories:
-                if f"raw/{obs}" in fp:
-                    mjds.extend(fp[f"raw/{obs}"])
-            mjds = list(set(mjds))
+        nights = _select_nights(fp, observatories, mjds)
+        with_fibers = [
+            (obs, m) for obs, m in nights if f"raw/{obs}/{m}/fibers" in fp
+        ]
+        if not with_fibers:
+            logger.warning(
+                f"No fibre mappings found in {input_path} for the selected "
+                f"nights, so there are no targets to add metadata for. Run "
+                f"`almanac add fibers {input_path}` first (or create the file "
+                f"with the --fibers flag)."
+            )
+            sys.exit(1)
+
+        n_without = len(nights) - len(with_fibers)
+        if n_without:
+            logger.warning(
+                f"{n_without} of {len(nights)} selected nights in {input_path} "
+                f"have no fibre mappings and will be skipped. Run "
+                f"`almanac add fibers {input_path}` to add them."
+            )
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=p) as executor:
             futures = [
-                executor.submit(_get_sdss_ids, fp, o, m)
-                for o, m in product(observatories, mjds)
+                executor.submit(_get_sdss_ids, fp, o, m) for o, m in with_fibers
             ]
             for future in tqdm(
                 concurrent.futures.as_completed(futures),
