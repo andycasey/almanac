@@ -107,7 +107,7 @@ class Exposure(BaseModel):
     @field_validator('prefix', mode="before")
     def validate_prefix(cls, v, values):
         if v is None:
-            return dict(apo="apR", lco="asR").get(values.get("observatory"))
+            return dict(apo="apR", lco="asR").get(values.data.get("observatory"))
         return v
 
     @field_validator("observer_comment", mode="before")
